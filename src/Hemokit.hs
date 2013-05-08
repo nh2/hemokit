@@ -185,14 +185,15 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     { rawData   = BS.empty
     , counter   = if is128c then 128                else fromIntegral byte0
     , battery   = if is128c then batteryValue byte0 else lastBattery
-    , gyroX     = fromIntegral (fromIntegral $ byte 29 - 103 :: Int8)
-    , gyroY     = fromIntegral (fromIntegral $ byte 30 - 105 :: Int8)
+    , gyroX     = int8 $ byte 29 - 103
+    , gyroY     = int8 $ byte 30 - 105
     , sensors   = V.fromList [getLevel decrypted32bytes (getSensorMask F3)]
     , qualities = case m'qualitySensor of
                     Just s -> traceShow (s, qualityLevel) $ lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
                     _      -> lastQualities
     }
   where
+    int8 n = fromIntegral (fromIntegral n :: Int8)
     byte0  = byte 0
     byte n = decrypted32bytes `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
@@ -213,6 +214,6 @@ main = do
     let decrypted = decrypt _SERIAL Consumer d32
     -- BS8.putStrLn decrypted
     let emotivPacket = makeEmotivPacket decrypted lastBattery lastQualities
-    print (qualities emotivPacket)
-    -- print emotivPacket
+    -- print (qualities emotivPacket)
+    print emotivPacket
     return (battery emotivPacket, qualities emotivPacket)
