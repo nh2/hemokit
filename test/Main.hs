@@ -4,7 +4,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS8
 import           Test.Hspec
 
-import Hemokit
+import Hemokit hiding (main)
 
 
 _SERIAL :: ByteString
@@ -19,5 +19,3 @@ main = hspec $ do
       decrypt _SERIAL Consumer b32 == BS8.pack "\SUBp\176Ei\155%\183\237\145\185\166:\247eQ"
         where
           b32 = BS8.pack "0123456789abcdef"
-
-
