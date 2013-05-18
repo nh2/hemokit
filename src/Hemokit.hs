@@ -7,6 +7,8 @@ module Hemokit
   , EmotivDeviceInfo (..)
   , EmotivDevice (..)
   , EmotivPacket (..)
+  , _EMOTIV_VENDOR_ID
+  , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
   , openEmotivDevice
   , readEmotivPacket
@@ -213,13 +215,13 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     m'qualitySensor = qualitySensorFromByte0 byte0
 
 
-_EMOTIV_VENDOR_ID, _Emotiv_PRODUCT_ID :: Word16
+_EMOTIV_VENDOR_ID, _EMOTIV_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
-_Emotiv_PRODUCT_ID = 1
+_EMOTIV_PRODUCT_ID = 1
 
 isEmotivDevice :: DeviceInfo -> Bool
 isEmotivDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
-                                                           p == _Emotiv_PRODUCT_ID
+                                                           p == _EMOTIV_PRODUCT_ID
 
 
 data EmotivException = InvalidSerialNumber String
