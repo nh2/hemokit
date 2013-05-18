@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, DeriveDataTypeable #-}
 
 module Hemokit
 ( decrypt
@@ -8,10 +8,12 @@ module Hemokit
 
 import           Control.Applicative
 import           Control.Concurrent (threadDelay, forkIO)
+import           Control.Exception
 import           Control.Monad
 import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
+import           Data.Data
 import           Data.List
 import           Data.IORef
 import           Data.Vector (Vector)
@@ -212,9 +214,6 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     m'qualitySensor = qualitySensorFromByte0 byte0
 
 
-foreverWith :: (Monad m) => a -> (a -> m a) -> m a
-foreverWith start f = f start >>= \start' -> foreverWith start' f
-
 _EMOTIV_VENDOR_ID, _EPOC_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
 _EPOC_PRODUCT_ID = 1
@@ -223,23 +222,66 @@ isEpocDevice :: DeviceInfo -> Bool
 isEpocDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
                                                          p == _EPOC_PRODUCT_ID
 
+
+data EpocException = InvalidSerialNumber String
+                   | CouldNotReadSerial String -- ^ with path to the device
+                   | OtherEpocException String
+                   deriving (Data, Typeable)
+
+instance Exception EpocException
+
+instance Show EpocException where
+  show (InvalidSerialNumber sn)  = "EPOC ERROR: the device serial number " ++ sn ++ " does not look valid"
+  show (CouldNotReadSerial path) = "EPOC ERROR: could not read serial number of device " ++ path ++ ". Maybe you are not running as root?"
+  show (OtherEpocException err)  = "EPOC ERROR: " ++ err
+
+
+data EpocDeviceInfo = EpocDeviceInfo { hidapiDeviceInfo :: DeviceInfo
+                                     } deriving (Show)
+
+data EpocDevice = EpocDevice { hidapiDevice  :: HID.Device
+                             , serial        :: SerialNumber
+                             , lastBattery   :: Int
+                             , lastQualities :: Vector Int
+                             }
+
+getEpocDevices :: IO [EpocDeviceInfo]
+getEpocDevices = map EpocDeviceInfo . filter isEpocDevice <$> HID.enumerate Nothing Nothing
+
+
+openEpocDevice :: EpocDeviceInfo -> IO EpocDevice
+openEpocDevice EpocDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
+    d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
+                                                Nothing -> throwIO $ InvalidSerialNumber sn
+                                                Just s  -> do hidDev <- HID.openDeviceInfo d
+                                                              return $ EpocDevice
+                                                                         { hidapiDevice  = hidDev
+                                                                         , serial        = s
+                                                                         , lastBattery   = 0
+                                                                         , lastQualities = V.fromList $ map (const 0) allSensors
+                                                                         }
+    DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
+
+
+readEpocPacket :: EpocDevice -> IO EmotivPacket
+readEpocPacket EpocDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
+
+    d32 <- HID.read hidapiDevice 32
+
+    let decrypted = decrypt serial Consumer d32
+
+    return $ makeEmotivPacket decrypted lastBattery lastQualities
+
+
 main :: IO ()
 main = do
 
-  devices <- HID.enumerate Nothing Nothing
+  devices <- getEpocDevices
 
   print devices
 
-  (deviceInfo, serial) <- case filter isEpocDevice devices of
-    d@DeviceInfo{ path, serialNumber = Just sn }:_ -> do putStrLn $ "using device " ++ path ++ " with serial number " ++ sn
-                                                         case makeSerialNumber (BS8.pack sn) of
-                                                           Just serial -> return (d, serial)
-                                                           _           -> error "ERROR: the device serial number does not look valid"
-    DeviceInfo{ path }:_                         -> error $ "ERROR: found device " ++ path ++ " but could not read serial number. Maybe you are not running as root?"
-    []                                           -> error $ "ERROR: could not find any Epoc device"
-
-  -- HID.init
-  device <- HID.openDeviceInfo deviceInfo
+  device <- openEpocDevice $ case devices of d:_ -> d
+                                             []  -> error "no EPOC devices found"
 
   m'xConnection <- connect
   xy <- newIORef (0,0)
@@ -253,13 +295,8 @@ main = do
       runRobotWithConnection (moveBy ((-x) `quot` 10) (y `quot` 10)) xc
       threadDelay 10000
 
-  let initialQualities = V.fromList $ map (const 0) allSensors
-  void $ foreverWith (0, initialQualities) $ \(lastBattery, lastQualities) -> do
-    d32 <- HID.read device 32
-
-    let decrypted = decrypt serial Consumer d32
-    -- BS8.putStrLn decrypted
-    let emotivPacket = makeEmotivPacket decrypted lastBattery lastQualities
+  forever $ do
+    emotivPacket <- readEpocPacket device
     -- print (qualities emotivPacket)
     print emotivPacket
     -- putStrLn $ show (gyroX emotivPacket) ++ " " ++ show (gyroY emotivPacket)
