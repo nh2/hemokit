@@ -199,7 +199,7 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     , battery   = if is128c then batteryValue byte0 else lastBattery
     , gyroX     = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
     , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
-    , sensors   = V.fromList [getLevel decrypted32bytes (getSensorMask F3)]
+    , sensors   = V.fromList [ getLevel decrypted32bytes (getSensorMask s) | s <- allSensors ]
     , qualities = case m'qualitySensor of
                     Just s -> lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
                     _      -> lastQualities
