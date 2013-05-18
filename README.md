@@ -3,6 +3,8 @@ hemokit
 
 Haskell library for the Emotiv Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
 
+Hemokit currently only works on Linux (patches welcome).
+
 
 Library Features
 ----------------
@@ -19,3 +21,5 @@ Hemokit comes with example programs to
 
 * print out the current EEG data
 * move the cursor with the gyro
+
+You must run them as root.
