@@ -219,30 +219,32 @@ _Emotiv_PRODUCT_ID = 1
 
 isEmotivDevice :: DeviceInfo -> Bool
 isEmotivDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
-                                                         p == _Emotiv_PRODUCT_ID
+                                                           p == _Emotiv_PRODUCT_ID
 
 
 data EmotivException = InvalidSerialNumber String
-                   | CouldNotReadSerial String -- ^ with path to the device
-                   | OtherEmotivException String
-                   deriving (Data, Typeable)
+                     | CouldNotReadSerial String -- ^ with path to the device
+                     | OtherEmotivException String
+                     deriving (Data, Typeable)
 
 instance Exception EmotivException
 
 instance Show EmotivException where
-  show (InvalidSerialNumber sn)  = "Emotiv ERROR: the device serial number " ++ sn ++ " does not look valid"
-  show (CouldNotReadSerial path) = "Emotiv ERROR: could not read serial number of device " ++ path ++ ". Maybe you are not running as root?"
-  show (OtherEmotivException err)  = "Emotiv ERROR: " ++ err
+  show (InvalidSerialNumber sn)   = "Emotiv ERROR: the device serial number " ++ sn ++ " does not look valid"
+  show (CouldNotReadSerial path)  = "Emotiv ERROR: could not read serial number of device " ++ path ++ ". Maybe you are not running as root?"
+  show (OtherEmotivException err) = "Emotiv ERROR: " ++ err
 
 
-data EmotivDeviceInfo = EmotivDeviceInfo { hidapiDeviceInfo :: DeviceInfo
-                                     } deriving (Show)
+data EmotivDeviceInfo = EmotivDeviceInfo
+  { hidapiDeviceInfo :: DeviceInfo
+  } deriving (Show)
 
-data EmotivDevice = EmotivDevice { hidapiDevice  :: HID.Device
-                             , serial        :: SerialNumber
-                             , lastBattery   :: Int
-                             , lastQualities :: Vector Int
-                             }
+data EmotivDevice = EmotivDevice
+  { hidapiDevice  :: HID.Device
+  , serial        :: SerialNumber
+  , lastBattery   :: Int
+  , lastQualities :: Vector Int
+  }
 
 getEmotivDevices :: IO [EmotivDeviceInfo]
 getEmotivDevices = map EmotivDeviceInfo . filter isEmotivDevice <$> HID.enumerate Nothing Nothing
@@ -250,23 +252,20 @@ getEmotivDevices = map EmotivDeviceInfo . filter isEmotivDevice <$> HID.enumerat
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
 openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
-    d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
-                                                Nothing -> throwIO $ InvalidSerialNumber sn
-                                                Just s  -> do hidDev <- HID.openDeviceInfo d
-                                                              return $ EmotivDevice
-                                                                         { hidapiDevice  = hidDev
-                                                                         , serial        = s
-                                                                         , lastBattery   = 0
-                                                                         , lastQualities = V.fromList $ map (const 0) allSensors
-                                                                         }
-    DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
+  d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
+                                              Nothing -> throwIO $ InvalidSerialNumber sn
+                                              Just s  -> do hidDev <- HID.openDeviceInfo d
+                                                            return $ EmotivDevice
+                                                              { hidapiDevice  = hidDev
+                                                              , serial        = s
+                                                              , lastBattery   = 0
+                                                              , lastQualities = V.fromList $ map (const 0) allSensors
+                                                              }
+  DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
 
 
 readEmotivPacket :: EmotivDevice -> IO EmotivPacket
 readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
-
-    d32 <- HID.read hidapiDevice 32
-
-    let decrypted = decrypt serial Consumer d32
-
-    return $ makeEmotivPacket decrypted lastBattery lastQualities
+  d32 <- HID.read hidapiDevice 32
+  let decrypted = decrypt serial Consumer d32
+  return $ makeEmotivPacket decrypted lastBattery lastQualities
