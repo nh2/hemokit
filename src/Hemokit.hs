@@ -1,37 +1,46 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Hemokit
 ( decrypt
 , EegType (..)
 , main
 ) where
 
+import           Control.Applicative
+import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Monad
 import           Crypto.Cipher.AES
-import           Data.Bits
+import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
-import           Data.Int
 import           Data.List
+import           Data.IORef
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
-import qualified Data.Vector.Generic.Mutable as VGM
 import           Data.Word
 import           Data.ByteString as BS (ByteString, index)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
-import           System.Environment
+import qualified System.HIDAPI as HID
+import           System.HIDAPI (DeviceInfo (..))
 import           System.IO
+import           Test.Robot
+import           Graphics.XHB.Connection (connect)
 
 import Debug.Trace
 
-
 data EegType = Consumer | Developer deriving (Eq, Show)
 
-type SerialNumber = ByteString
 
+newtype SerialNumber = SerialNumber ByteString -- must be 16 bytes
+
+makeSerialNumber :: ByteString -> Maybe SerialNumber
+makeSerialNumber b | BS.length b == 16 = Just $ SerialNumber b
+                   | otherwise         = Nothing
 
 
 -- Takes 32 bytes encrypted bytestring, returns 32 bytes decrypted bytestring.
 decrypt :: SerialNumber -> EegType -> ByteString -> ByteString
-decrypt num typ encrypted32bytes = BS.concat [decryptECB key left, decryptECB key right]
+decrypt (SerialNumber num) typ encrypted32bytes = BS.concat [decryptECB key left, decryptECB key right]
   where
     (left, right) = BS.splitAt 16 encrypted32bytes
     sn x | x >= 0    = index num x
@@ -83,6 +92,7 @@ getSensorMask s = SensorMask $ case s of
   FC6 -> [214, 215, 200, 201, 202, 203, 204, 205, 206, 207, 192, 193, 194, 195]
   F4  -> [216, 217, 218, 219, 220, 221, 222, 223, 208, 209, 210, 211, 212, 213]
 
+qualityMask :: SensorMask
 qualityMask = SensorMask [99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112]
 
 
@@ -170,30 +180,31 @@ data EmotivPacket = EmotivPacket
   { rawData   :: ByteString
   , counter   :: Int
   , battery   :: Int
-  , gyroX     :: Int
-  , gyroY     :: Int
+  , gyroX     :: Int -- ^ turning "left" gives positive numbers
+  , gyroY     :: Int -- ^ turning "down" gives positive numbers
   , sensors   :: Vector Int
   , qualities :: Vector Int
   } deriving (Eq, Show)
 
 
--- TODO improve gyro like this?
+-- I improved the gyro like this:
 -- https://github.com/openyou/emokit/commit/b023a3c195410147dae44a3ce3a6d72f7c16e441
+-- TODO check by graphing if that is really correct vs the old implementation.
 
 makeEmotivPacket :: ByteString -> Int -> Vector Int -> EmotivPacket
 makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     { rawData   = BS.empty
     , counter   = if is128c then 128                else fromIntegral byte0
     , battery   = if is128c then batteryValue byte0 else lastBattery
-    , gyroX     = int8 $ byte 29 - 103
-    , gyroY     = int8 $ byte 30 - 105
+    , gyroX     = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
+    , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
     , sensors   = V.fromList [getLevel decrypted32bytes (getSensorMask F3)]
     , qualities = case m'qualitySensor of
                     Just s -> traceShow (s, qualityLevel) $ lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
                     _      -> lastQualities
     }
   where
-    int8 n = fromIntegral (fromIntegral n :: Int8)
+    int n  = fromIntegral n :: Int
     byte0  = byte 0
     byte n = decrypted32bytes `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
@@ -201,19 +212,59 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     m'qualitySensor = qualitySensorFromByte0 byte0
 
 
-_SERIAL = BS8.pack "SN201211154288GM"
-
 foreverWith :: (Monad m) => a -> (a -> m a) -> m a
 foreverWith start f = f start >>= \start' -> foreverWith start' f
 
+_EMOTIV_VENDOR_ID, _EPOC_PRODUCT_ID :: Word16
+_EMOTIV_VENDOR_ID = 8609
+_EPOC_PRODUCT_ID = 1
+
+isEpocDevice :: DeviceInfo -> Bool
+isEpocDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
+                                                         p == _EPOC_PRODUCT_ID
+
+main :: IO ()
 main = do
-  [path] <- getArgs
+
+  devices <- HID.enumerate Nothing Nothing
+
+  print devices
+
+  (deviceInfo, serial) <- case filter isEpocDevice devices of
+    d@DeviceInfo{ path, serialNumber = Just sn }:_ -> do putStrLn $ "using device " ++ path ++ " with serial number " ++ sn
+                                                         case makeSerialNumber (BS8.pack sn) of
+                                                           Just serial -> return (d, serial)
+                                                           _           -> error "ERROR: the device serial number does not look valid"
+    DeviceInfo{ path }:_                         -> error $ "ERROR: found device " ++ path ++ " but could not read serial number. Maybe you are not running as root?"
+    []                                           -> error $ "ERROR: could not find any Epoc device"
+
+  -- HID.init
+  device <- HID.openDeviceInfo deviceInfo
+
+  m'xConnection <- connect
+  xy <- newIORef (0,0)
+
+  case m'xConnection of
+    Nothing -> return ()
+    Just xc -> void . forkIO . forever $ do
+      (x, y) <- readIORef xy
+      print (x, y)
+      writeIORef xy (0, 0)
+      runRobotWithConnection (moveBy ((-x) `quot` 10) (y `quot` 10)) xc
+      threadDelay 10000
+
   let initialQualities = V.fromList $ map (const 0) allSensors
-  withFile path ReadMode $ \h -> foreverWith (0, initialQualities) $ \(lastBattery, lastQualities) -> do
-    d32 <- BS.hGetSome h 32
-    let decrypted = decrypt _SERIAL Consumer d32
+  void $ foreverWith (0, initialQualities) $ \(lastBattery, lastQualities) -> do
+    d32 <- HID.read device 32
+
+    let decrypted = decrypt serial Consumer d32
     -- BS8.putStrLn decrypted
     let emotivPacket = makeEmotivPacket decrypted lastBattery lastQualities
     -- print (qualities emotivPacket)
     print emotivPacket
+    -- putStrLn $ show (gyroX emotivPacket) ++ " " ++ show (gyroY emotivPacket)
+    hFlush stdout
+
+    modifyIORef' xy $ \(x,y) -> (x + gyroX emotivPacket, y + gyroY emotivPacket)
+
     return (battery emotivPacket, qualities emotivPacket)
