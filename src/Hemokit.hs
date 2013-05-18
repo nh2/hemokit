@@ -1,21 +1,24 @@
 {-# LANGUAGE NamedFieldPuns, DeriveDataTypeable #-}
 
 module Hemokit
-( decrypt
-, EegType (..)
-, main
-) where
+  ( decrypt
+  , EegType (..)
+  , EmotivException (..)
+  , EmotivDeviceInfo (..)
+  , EmotivDevice (..)
+  , EmotivPacket (..)
+  , getEmotivDevices
+  , openEmotivDevice
+  , readEmotivPacket
+  ) where
 
 import           Control.Applicative
-import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Exception
-import           Control.Monad
 import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
 import           Data.Data
 import           Data.List
-import           Data.IORef
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Data.Word
@@ -24,9 +27,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified System.HIDAPI as HID
 import           System.HIDAPI (DeviceInfo (..))
-import           System.IO
-import           Test.Robot
-import           Graphics.XHB.Connection (connect)
 
 
 data EegType = Consumer | Developer deriving (Eq, Show)
@@ -213,47 +213,47 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     m'qualitySensor = qualitySensorFromByte0 byte0
 
 
-_EMOTIV_VENDOR_ID, _EPOC_PRODUCT_ID :: Word16
+_EMOTIV_VENDOR_ID, _Emotiv_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
-_EPOC_PRODUCT_ID = 1
+_Emotiv_PRODUCT_ID = 1
 
-isEpocDevice :: DeviceInfo -> Bool
-isEpocDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
-                                                         p == _EPOC_PRODUCT_ID
+isEmotivDevice :: DeviceInfo -> Bool
+isEmotivDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
+                                                         p == _Emotiv_PRODUCT_ID
 
 
-data EpocException = InvalidSerialNumber String
+data EmotivException = InvalidSerialNumber String
                    | CouldNotReadSerial String -- ^ with path to the device
-                   | OtherEpocException String
+                   | OtherEmotivException String
                    deriving (Data, Typeable)
 
-instance Exception EpocException
+instance Exception EmotivException
 
-instance Show EpocException where
-  show (InvalidSerialNumber sn)  = "EPOC ERROR: the device serial number " ++ sn ++ " does not look valid"
-  show (CouldNotReadSerial path) = "EPOC ERROR: could not read serial number of device " ++ path ++ ". Maybe you are not running as root?"
-  show (OtherEpocException err)  = "EPOC ERROR: " ++ err
+instance Show EmotivException where
+  show (InvalidSerialNumber sn)  = "Emotiv ERROR: the device serial number " ++ sn ++ " does not look valid"
+  show (CouldNotReadSerial path) = "Emotiv ERROR: could not read serial number of device " ++ path ++ ". Maybe you are not running as root?"
+  show (OtherEmotivException err)  = "Emotiv ERROR: " ++ err
 
 
-data EpocDeviceInfo = EpocDeviceInfo { hidapiDeviceInfo :: DeviceInfo
+data EmotivDeviceInfo = EmotivDeviceInfo { hidapiDeviceInfo :: DeviceInfo
                                      } deriving (Show)
 
-data EpocDevice = EpocDevice { hidapiDevice  :: HID.Device
+data EmotivDevice = EmotivDevice { hidapiDevice  :: HID.Device
                              , serial        :: SerialNumber
                              , lastBattery   :: Int
                              , lastQualities :: Vector Int
                              }
 
-getEpocDevices :: IO [EpocDeviceInfo]
-getEpocDevices = map EpocDeviceInfo . filter isEpocDevice <$> HID.enumerate Nothing Nothing
+getEmotivDevices :: IO [EmotivDeviceInfo]
+getEmotivDevices = map EmotivDeviceInfo . filter isEmotivDevice <$> HID.enumerate Nothing Nothing
 
 
-openEpocDevice :: EpocDeviceInfo -> IO EpocDevice
-openEpocDevice EpocDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
+openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
+openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
     d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
                                                 Nothing -> throwIO $ InvalidSerialNumber sn
                                                 Just s  -> do hidDev <- HID.openDeviceInfo d
-                                                              return $ EpocDevice
+                                                              return $ EmotivDevice
                                                                          { hidapiDevice  = hidDev
                                                                          , serial        = s
                                                                          , lastBattery   = 0
@@ -262,45 +262,11 @@ openEpocDevice EpocDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
     DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
 
 
-readEpocPacket :: EpocDevice -> IO EmotivPacket
-readEpocPacket EpocDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
+readEmotivPacket :: EmotivDevice -> IO EmotivPacket
+readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
 
     d32 <- HID.read hidapiDevice 32
 
     let decrypted = decrypt serial Consumer d32
 
     return $ makeEmotivPacket decrypted lastBattery lastQualities
-
-
-main :: IO ()
-main = do
-
-  devices <- getEpocDevices
-
-  print devices
-
-  device <- openEpocDevice $ case devices of d:_ -> d
-                                             []  -> error "no EPOC devices found"
-
-  m'xConnection <- connect
-  xy <- newIORef (0,0)
-
-  case m'xConnection of
-    Nothing -> return ()
-    Just xc -> void . forkIO . forever $ do
-      (x, y) <- readIORef xy
-      print (x, y)
-      writeIORef xy (0, 0)
-      runRobotWithConnection (moveBy ((-x) `quot` 10) (y `quot` 10)) xc
-      threadDelay 10000
-
-  forever $ do
-    emotivPacket <- readEpocPacket device
-    -- print (qualities emotivPacket)
-    print emotivPacket
-    -- putStrLn $ show (gyroX emotivPacket) ++ " " ++ show (gyroY emotivPacket)
-    hFlush stdout
-
-    modifyIORef' xy $ \(x,y) -> (x + gyroX emotivPacket, y + gyroY emotivPacket)
-
-    return (battery emotivPacket, qualities emotivPacket)
