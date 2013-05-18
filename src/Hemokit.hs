@@ -28,7 +28,6 @@ import           System.IO
 import           Test.Robot
 import           Graphics.XHB.Connection (connect)
 
-import Debug.Trace
 
 data EegType = Consumer | Developer deriving (Eq, Show)
 
@@ -202,7 +201,7 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
     , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
     , sensors   = V.fromList [getLevel decrypted32bytes (getSensorMask F3)]
     , qualities = case m'qualitySensor of
-                    Just s -> traceShow (s, qualityLevel) $ lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
+                    Just s -> lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
                     _      -> lastQualities
     }
   where
