@@ -59,21 +59,22 @@ decrypt (SerialNumber num) typ encrypted32bytes = BS.concat [decryptECB key left
       Developer -> [ c 'H', sn (-1), 0   , sn (-2), c 'T', sn (-3), 0x10, sn (-4), c 'B']
     end =          [ sn (-3), 0, sn (-4), c 'P']
 
-data Sensor = F3
-            | FC5
-            | AF3
-            | F7
-            | T7
-            | P7
-            | O1
-            | O2
-            | P8
-            | T8
-            | F8
-            | AF4
-            | FC6
-            | F4
-            deriving (Eq, Enum, Bounded, Ord, Show)
+data Sensor
+  = F3
+  | FC5
+  | AF3
+  | F7
+  | T7
+  | P7
+  | O1
+  | O2
+  | P8
+  | T8
+  | F8
+  | AF4
+  | FC6
+  | F4
+  deriving (Eq, Enum, Bounded, Ord, Show)
 
 allSensors :: [Sensor]
 allSensors = [minBound .. maxBound]
@@ -182,13 +183,12 @@ qualitySensorFromByte0 packetNo = case packetNo of
 
 
 data EmotivPacket = EmotivPacket
-  { rawData   :: ByteString
-  , counter   :: Int
-  , battery   :: Int
+  { counter   :: Int
+  , battery   :: Maybe Int
   , gyroX     :: Int -- ^ turning "left" gives positive numbers
   , gyroY     :: Int -- ^ turning "down" gives positive numbers
   , sensors   :: Vector Int
-  , qualities :: Vector Int
+  , quality   :: Maybe ( Sensor, Int )
   } deriving (Eq, Show)
 
 
@@ -196,26 +196,23 @@ data EmotivPacket = EmotivPacket
 -- https://github.com/openyou/emokit/commit/b023a3c195410147dae44a3ce3a6d72f7c16e441
 -- TODO check by graphing if that is really correct vs the old implementation.
 
-makeEmotivPacket :: ByteString -> Int -> Vector Int -> EmotivPacket
-makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
-    { rawData   = BS.empty
-    , counter   = if is128c then 128                else fromIntegral byte0
-    , battery   = if is128c then batteryValue byte0 else lastBattery
+parsePacket :: ByteString -> EmotivPacket
+parsePacket decrypted32bytes = EmotivPacket
+    { counter   = if is128c then 128                else fromIntegral byte0
+    , battery   = if is128c then Just (batteryValue byte0) else Nothing
     , gyroX     = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
     , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
     , sensors   = V.fromList [ getLevel decrypted32bytes (getSensorMask s) | s <- allSensors ]
-    , qualities = case m'qualitySensor of
-                    Just s -> lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
-                    _      -> lastQualities
+    , quality   = do
+        s <- qualitySensorFromByte0 byte0
+        let l = getLevel decrypted32bytes qualityMask
+        return ( s, l )
     }
   where
     int n  = fromIntegral n :: Int
     byte0  = byte 0
     byte n = decrypted32bytes `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
-    qualityLevel    = getLevel decrypted32bytes qualityMask
-    m'qualitySensor = qualitySensorFromByte0 byte0
-
 
 _EMOTIV_VENDOR_ID, _EMOTIV_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
@@ -241,8 +238,6 @@ data EmotivDeviceInfo = EmotivDeviceInfo
 data EmotivDevice = EmotivDevice
   { hidapiDevice  :: HID.Device
   , serial        :: SerialNumber
-  , lastBattery   :: Int
-  , lastQualities :: Vector Int
   }
 
 getEmotivDevices :: IO [EmotivDeviceInfo]
@@ -263,14 +258,12 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
         return EmotivDevice
           { hidapiDevice  = hidDev
           , serial        = s
-          , lastBattery   = 0
-          , lastQualities = V.fromList $ map (const 0) allSensors
           }
   DeviceInfo{ path } -> throwIO $ CouldNotReadSerial path
 
 
 readEmotivPacket :: EmotivDevice -> IO EmotivPacket
-readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
+readEmotivPacket EmotivDevice{ hidapiDevice, serial } = do
   d32 <- HID.read hidapiDevice 32
   let decrypted = decrypt serial Consumer d32
-  return $ makeEmotivPacket decrypted lastBattery lastQualities
+  return $ parsePacket decrypted
