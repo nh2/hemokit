@@ -7,6 +7,7 @@ module Hemokit
   , EmotivDeviceInfo (..)
   , EmotivDevice (..)
   , EmotivPacket (..)
+  , Sensor (..)
   , _EMOTIV_VENDOR_ID
   , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
