@@ -18,7 +18,7 @@ module Hemokit
 import           Control.Applicative
 import           Control.Exception
 import           Crypto.Cipher.AES
-import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
+import           Data.Bits
 import           Data.Char
 import           Data.Data
 import           Data.Ord (comparing)
@@ -102,15 +102,27 @@ qualityMask :: SensorMask
 qualityMask = SensorMask [99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112]
 
 
-getLevel :: ByteString -> SensorMask -> Int
-getLevel decrypted32bytes (SensorMask sensorBits) = fromIntegral $ foldl' f 0 sensorBits
-  where
-    f :: Word8 -> Word8 -> Word8
-    f level bit = (level `shiftL` 1) .|. ((decrypted32bytes `index` fromIntegral b) `shiftR` fromIntegral o .&. 1)
-      where
-        b = (bit `shiftR` 3) + 1 :: Word8
-        o = bit .&. 7            :: Word8 -- mod 8
+getLevel :: SensorMask -> ByteString -> Int
+getLevel (SensorMask bits) packet
+  = fromBits (map getBit bits)
+    where
+      getBit b = testBit' bi $ int (packet `index` (by + 1))
+        where
+          ( by, bi ) = int b `quotRem` 8
 
+
+-- Assemble number from bits in MSB->LSB order.
+fromBits :: Bits a => [ a ] -> a
+-- fromBits = foldr1 (\b x -> x `shiftL` 1 .|. b)
+fromBits = foldl1 (\x b -> x `shiftL` 1 .|. b)
+
+
+-- similar to testBit without the conversion to Bool
+testBit' :: (Num a, Bits a) => Int -> a -> a
+testBit' n x = x `shiftR` n .|. 1
+
+int :: Integral a => a -> Int
+int = fromIntegral
 
 -- TODO this might have to be adjusted
 batteryValue :: Word8 -> Int
@@ -198,18 +210,17 @@ data EmotivPacket = EmotivPacket
 
 parsePacket :: ByteString -> EmotivPacket
 parsePacket decrypted32bytes = EmotivPacket
-    { counter   = if is128c then 128                else fromIntegral byte0
+    { counter   = if is128c then 128 else int byte0
     , battery   = if is128c then Just (batteryValue byte0) else Nothing
     , gyroX     = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
     , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
-    , sensors   = V.fromList [ getLevel decrypted32bytes (getSensorMask s) | s <- allSensors ]
+    , sensors   = V.fromList [ getLevel (getSensorMask s) decrypted32bytes | s <- allSensors ]
     , quality   = do
         s <- qualitySensorFromByte0 byte0
-        let l = getLevel decrypted32bytes qualityMask
+        let l = getLevel qualityMask decrypted32bytes
         return ( s, l )
     }
   where
-    int n  = fromIntegral n :: Int
     byte0  = byte 0
     byte n = decrypted32bytes `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
