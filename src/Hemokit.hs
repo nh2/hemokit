@@ -255,7 +255,7 @@ data EmotivDevice = EmotivDevice
   }
 
 getEmotivDevices :: IO [EmotivDeviceInfo]
-getEmotivDevices = map EmotivDeviceInfo . filter isEmotivDevice <$> HID.enumerate Nothing Nothing
+getEmotivDevices = map EmotivDeviceInfo <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
 
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
