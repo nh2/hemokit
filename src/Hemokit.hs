@@ -221,11 +221,6 @@ _EMOTIV_VENDOR_ID, _EMOTIV_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
 _EMOTIV_PRODUCT_ID = 1
 
-isEmotivDevice :: DeviceInfo -> Bool
-isEmotivDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
-                                                           p == _EMOTIV_PRODUCT_ID
-
-
 data EmotivException = InvalidSerialNumber String
                      | CouldNotReadSerial String -- ^ with path to the device
                      | OtherEmotivException String
@@ -260,16 +255,18 @@ primaryDevice = maximumBy (comparing (interfaceNumber . hidapiDeviceInfo))
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
 openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
-  d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
-                                              Nothing -> throwIO $ InvalidSerialNumber sn
-                                              Just s  -> do hidDev <- HID.openDeviceInfo d
-                                                            return $ EmotivDevice
-                                                              { hidapiDevice  = hidDev
-                                                              , serial        = s
-                                                              , lastBattery   = 0
-                                                              , lastQualities = V.fromList $ map (const 0) allSensors
-                                                              }
-  DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
+  d@DeviceInfo{ serialNumber = Just sn } ->
+    case makeSerialNumber (BS8.pack sn) of
+      Nothing -> throwIO $ InvalidSerialNumber sn
+      Just s  -> do 
+        hidDev <- HID.openDeviceInfo d
+        return EmotivDevice
+          { hidapiDevice  = hidDev
+          , serial        = s
+          , lastBattery   = 0
+          , lastQualities = V.fromList $ map (const 0) allSensors
+          }
+  DeviceInfo{ path } -> throwIO $ CouldNotReadSerial path
 
 
 readEmotivPacket :: EmotivDevice -> IO EmotivPacket
