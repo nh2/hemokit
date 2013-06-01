@@ -10,6 +10,7 @@ module Hemokit
   , _EMOTIV_VENDOR_ID
   , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
+  , primaryDevice
   , openEmotivDevice
   , readEmotivPacket
   ) where
@@ -21,6 +22,8 @@ import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
 import           Data.Data
 import           Data.IORef
+import           Data.List
+import           Data.Ord (comparing)
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Data.Word
@@ -256,6 +259,10 @@ data EmotivDevice = EmotivDevice
 
 getEmotivDevices :: IO [EmotivDeviceInfo]
 getEmotivDevices = map EmotivDeviceInfo <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
+
+
+primaryDevice :: [EmotivDeviceInfo] -> EmotivDeviceInfo
+primaryDevice = maximumBy (comparing (interfaceNumber . hidapiDeviceInfo))
 
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
