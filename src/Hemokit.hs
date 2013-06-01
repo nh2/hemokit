@@ -59,21 +59,22 @@ decrypt (SerialNumber num) typ encrypted32bytes = BS.concat [decryptECB key left
       Developer -> [ c 'H', sn (-1), 0   , sn (-2), c 'T', sn (-3), 0x10, sn (-4), c 'B']
     end =          [ sn (-3), 0, sn (-4), c 'P']
 
-data Sensor = F3
-            | FC5
-            | AF3
-            | F7
-            | T7
-            | P7
-            | O1
-            | O2
-            | P8
-            | T8
-            | F8
-            | AF4
-            | FC6
-            | F4
-            deriving (Eq, Enum, Bounded, Ord, Show)
+data Sensor
+  = F3
+  | FC5
+  | AF3
+  | F7
+  | T7
+  | P7
+  | O1
+  | O2
+  | P8
+  | T8
+  | F8
+  | AF4
+  | FC6
+  | F4
+  deriving (Eq, Enum, Bounded, Ord, Show)
 
 allSensors :: [Sensor]
 allSensors = [minBound .. maxBound]
@@ -227,11 +228,6 @@ _EMOTIV_VENDOR_ID, _EMOTIV_PRODUCT_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
 _EMOTIV_PRODUCT_ID = 1
 
-isEmotivDevice :: DeviceInfo -> Bool
-isEmotivDevice DeviceInfo{ vendorId = v, productId = p } = v == _EMOTIV_VENDOR_ID &&
-                                                           p == _EMOTIV_PRODUCT_ID
-
-
 data EmotivException = InvalidSerialNumber String
                      | CouldNotReadSerial String -- ^ with path to the device
                      | OtherEmotivException String
@@ -268,18 +264,19 @@ getEmotivDevices = map EmotivDeviceInfo
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
 openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
-  d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
-                                              Nothing -> throwIO $ InvalidSerialNumber sn
-                                              Just s  -> do hidDev <- HID.openDeviceInfo d
-                                                            batteryRef <- newIORef 0
-                                                            qualitiesRef <- newIORef $ V.fromList $ map (const 0) allSensors
-                                                            return $ EmotivDevice
-                                                              { hidapiDevice     = hidDev
-                                                              , serial           = s
-                                                              , lastBatteryRef   = batteryRef
-                                                              , lastQualitiesRef = qualitiesRef
-                                                              }
-  DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
+  DeviceInfo{ serialNumber = Nothing, path } -> throwIO $ CouldNotReadSerial path
+  DeviceInfo{ serialNumber = Just sn } ->
+    case makeSerialNumber (BS8.pack sn) of
+      Nothing -> throwIO $ InvalidSerialNumber sn
+      Just s  -> do hidDev <- HID.openDeviceInfo hidapiDeviceInfo
+                    batteryRef <- newIORef 0
+                    qualitiesRef <- newIORef $ V.fromList $ map (const 0) allSensors
+                    return $ EmotivDevice
+                      { hidapiDevice     = hidDev
+                      , serial           = s
+                      , lastBatteryRef   = batteryRef
+                      , lastQualitiesRef = qualitiesRef
+                      }
 
 
 readEmotivPacket :: EmotivDevice -> IO EmotivPacket
