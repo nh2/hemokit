@@ -18,13 +18,27 @@ packets d = forever (liftIO (readEmotiv d) >>= yield . fst)
 buffer :: Monad m => Int -> Conduit a m [ a ]
 buffer n = forever (CL.take n >>= yield)
 
-printAll :: Show a => Sink a IO ()
-printAll = awaitForever (liftIO . print)
+printAll :: Sink [V.Vector Double] IO ()
+printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map showFFT tds))
 
 
 -- Convert a length M list of length N vectors into a length N list of length M vectors.
 transposeV :: Int -> [ V.Vector a ] -> [ V.Vector a ]
 transposeV n vs = [ V.fromList (map (V.! i) vs) | i <- [ 0 .. n - 1 ] ]
+
+showFFT :: V.Vector Double -> String
+showFFT ms = map (toChar . (/(V.maximum ms))) $ V.toList ms
+    where
+      toChar m
+        | m < 0.25 = ' '
+        | m < 0.5  = '.'
+        | m < 0.75 = 'o'
+        | otherwise = '#'
+
+norm :: V.Vector Double -> V.Vector Double
+norm v = V.map (subtract avg) v
+  where
+    avg = V.sum v / fromIntegral (V.length v)
 
 
 main :: IO ()
@@ -37,10 +51,10 @@ main = do
     [] -> error "No devices found."
     _  -> openEmotivDevice model (last devices)
 
-  let size = 16
+  let size = 256
   let fft = plan dftR2C size
 
   let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
-  let fftConduit = mapOutput (map (V.map magnitude . execute fft) . transposeV 14) (buffer size)
+  let fftConduit = mapOutput (map (V.map magnitude . execute fft . norm) . transposeV 14) (buffer size)
 
   sensorData $= fftConduit $$ printAll
