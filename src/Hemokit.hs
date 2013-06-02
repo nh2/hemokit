@@ -20,6 +20,7 @@ import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
 import           Data.Data
+import           Data.IORef
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Data.Word
@@ -247,10 +248,10 @@ data EmotivDeviceInfo = EmotivDeviceInfo
   } deriving (Show)
 
 data EmotivDevice = EmotivDevice
-  { hidapiDevice  :: HID.Device
-  , serial        :: SerialNumber
-  , lastBattery   :: Int
-  , lastQualities :: Vector Int
+  { hidapiDevice     :: HID.Device
+  , serial           :: SerialNumber
+  , lastBatteryRef   :: IORef Int
+  , lastQualitiesRef :: IORef (Vector Int)
   }
 
 getEmotivDevices :: IO [EmotivDeviceInfo]
@@ -262,17 +263,28 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
   d@DeviceInfo{ serialNumber = Just sn } -> case makeSerialNumber (BS8.pack sn) of
                                               Nothing -> throwIO $ InvalidSerialNumber sn
                                               Just s  -> do hidDev <- HID.openDeviceInfo d
+                                                            batteryRef <- newIORef 0
+                                                            qualitiesRef <- newIORef $ V.fromList $ map (const 0) allSensors
                                                             return $ EmotivDevice
-                                                              { hidapiDevice  = hidDev
-                                                              , serial        = s
-                                                              , lastBattery   = 0
-                                                              , lastQualities = V.fromList $ map (const 0) allSensors
+                                                              { hidapiDevice     = hidDev
+                                                              , serial           = s
+                                                              , lastBatteryRef   = batteryRef
+                                                              , lastQualitiesRef = qualitiesRef
                                                               }
   DeviceInfo{ path }                           -> throwIO $ CouldNotReadSerial path
 
 
 readEmotivPacket :: EmotivDevice -> IO EmotivPacket
-readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBattery, lastQualities } = do
+readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBatteryRef, lastQualitiesRef } = do
   d32 <- HID.read hidapiDevice 32
   let decrypted = decrypt serial Consumer d32
-  return $ makeEmotivPacket decrypted lastBattery lastQualities
+
+  lastQualities <- readIORef lastQualitiesRef
+  lastBattery <- readIORef lastBatteryRef
+
+  let p = makeEmotivPacket decrypted lastBattery lastQualities
+
+  writeIORef lastQualitiesRef (qualities p)
+  writeIORef lastBatteryRef (battery p)
+
+  return p
