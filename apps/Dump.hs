@@ -14,8 +14,8 @@ main = do
 
   putStrLn $ "AvailableDevices:\n" ++ ppShow devices
 
-  device <- openEmotivDevice $ case devices of d:_ -> d
-                                               []  -> error "no Epoc devices found"
+  device <- openEmotivDevice $ case devices of []  -> error "no Epoc devices found"
+                                               l -> last l
 
   forever $ do
     emotivPacket <- readEmotivPacket device
