@@ -1,11 +1,11 @@
 module Main where
 
 import           Control.Monad
-import           System.IO
+import           Data.List
+import qualified Data.Vector as V
 import           Text.Show.Pretty (ppShow)
 
 import           Hemokit
-
 
 main :: IO ()
 main = do
@@ -17,5 +17,4 @@ main = do
 
   forever $ do
     emotivPacket <- readEmotivPacket device
-    print emotivPacket
-    hFlush stdout
+    putStrLn $ intercalate "\t" $ map show $ V.toList $ sensors emotivPacket

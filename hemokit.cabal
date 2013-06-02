@@ -59,6 +59,25 @@ executable hemokit-dump
     , hemokit
     , pretty-show       >= 1.0
 
+executable hemokit-quality
+  hs-source-dirs:
+    apps
+  main-is:
+    Quality.hs
+  build-depends:
+      base
+    , hemokit
+
+executable hemokit-fft
+  hs-source-dirs:
+    apps
+  main-is:
+    FFT.hs
+  build-depends:
+      base
+    , hemokit
+    , vector-fftw
+    , conduit
 
 test-suite tests
   default-language: Haskell2010
