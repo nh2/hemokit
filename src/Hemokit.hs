@@ -20,7 +20,6 @@ import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
 import           Data.Data
-import           Data.List
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Data.Word
@@ -76,7 +75,7 @@ data Sensor = F3
 allSensors :: [Sensor]
 allSensors = [minBound .. maxBound]
 
-newtype SensorMask = SensorMask [Word8] deriving (Eq, Show)
+newtype SensorMask = SensorMask [Word8] deriving (Eq, Show) -- indices of bits
 
 getSensorMask :: Sensor -> SensorMask
 getSensorMask s = SensorMask $ case s of
@@ -100,13 +99,20 @@ qualityMask = SensorMask [99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 
 
 
 getLevel :: ByteString -> SensorMask -> Int
-getLevel decrypted32bytes (SensorMask sensorBits) = fromIntegral $ foldl' f 0 sensorBits
+getLevel decrypted32bytes (SensorMask sensorBits) = foldr f 0 sensorBits
   where
-    f :: Word8 -> Word8 -> Word8
-    f level bit = (level `shiftL` 1) .|. ((decrypted32bytes `index` fromIntegral b) `shiftR` fromIntegral o .&. 1)
+    f :: Word8 -> Int -> Int
+    f bitNo level = (level `shiftL` 1) .|. int (bitAt b o)
       where
-        b = (bit `shiftR` 3) + 1 :: Word8
-        o = bit .&. 7            :: Word8 -- mod 8
+        b = (bitNo `shiftR` 3) + 1 :: Word8 -- div by 8 to get byte number, skip first byte (counter)
+        o = bitNo .&. 7            :: Word8 -- mod by 8 to get bit offset
+
+    bitAt :: Word8 -> Word8 -> Word8
+    bitAt byte bitOffset = ((decrypted32bytes `index` int byte) `shiftR` int bitOffset) .&. 1
+
+
+int :: (Integral a) => a -> Int
+int = fromIntegral
 
 
 -- TODO this might have to be adjusted
@@ -207,7 +213,6 @@ makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
                     _      -> lastQualities
     }
   where
-    int n  = fromIntegral n :: Int
     byte0  = byte 0
     byte n = decrypted32bytes `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
