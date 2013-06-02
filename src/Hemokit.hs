@@ -112,15 +112,13 @@ getLevel (SensorMask bits) packet
           ( by, bi ) = int b `quotRem` 8
 
 
--- Assemble number from bits in MSB->LSB order.
+-- Assemble number from bits in LSB->MSB order.
 fromBits :: Bits a => [ a ] -> a
--- fromBits = foldr1 (\b x -> x `shiftL` 1 .|. b)
-fromBits = foldl1 (\x b -> x `shiftL` 1 .|. b)
-
+fromBits = foldr1 (\b x -> x `shiftL` 1 .|. b)
 
 -- similar to testBit without the conversion to Bool
 testBit' :: (Num a, Bits a) => Int -> a -> a
-testBit' n x = x `shiftR` n .|. 1
+testBit' n x = x `shiftR` n .&. 1
 
 int :: Integral a => a -> Int
 int = fromIntegral
