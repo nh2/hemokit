@@ -42,4 +42,4 @@ main = do
 
     modifyIORef' xy $ \(x,y) -> (x + gyroX emotivPacket, y + gyroY emotivPacket)
 
-    return (battery emotivPacket, qualities emotivPacket)
+    return (battery emotivPacket, quality emotivPacket)

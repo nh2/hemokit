@@ -58,6 +58,7 @@ executable hemokit-dump
       base
     , hemokit
     , pretty-show       >= 1.0
+    , vector            >= 0.9
 
 executable hemokit-quality
   hs-source-dirs:
@@ -67,6 +68,8 @@ executable hemokit-quality
   build-depends:
       base
     , hemokit
+    , pretty-show       >= 1.0
+    , vector            >= 0.9
 
 executable hemokit-fft
   hs-source-dirs:
@@ -76,8 +79,11 @@ executable hemokit-fft
   build-depends:
       base
     , hemokit
-    , vector-fftw
     , conduit
+    , pretty-show       >= 1.0
+    , vector            >= 0.9
+    , vector-fftw
+    , mtl               >= 2
 
 test-suite tests
   default-language: Haskell2010
