@@ -21,7 +21,7 @@ module Hemokit
   , EmotivException (..)
 
   -- EEG models
-  , EegType (..)
+  , EmotivModel (..)
 
   -- * EEG data
   , EmotivPacket (..)
@@ -70,7 +70,10 @@ import           System.HIDAPI (DeviceInfo (..))
 -- | Whether the EPOC is a consumer or developer model.
 --
 -- This affects how the EEG data is to be decrypted.
-data EegType = Consumer | Developer deriving (Eq, Show)
+--
+-- You can check if you are using the correct model by seeing if the packet
+-- `counter` increases from 0 until 128 on subsequent packets.
+data EmotivModel = Consumer | Developer deriving (Eq, Show)
 
 
 -- | A valid Emotiv serial number.
@@ -83,7 +86,7 @@ makeSerialNumber b | BS.length b == 16 = Just $ SerialNumber b
 
 
 -- | Takes a 32 bytes encrypted EEG data, returns 32 bytes decrypted EEG data.
-decrypt :: SerialNumber -> EegType -> ByteString -> EmotivRawData
+decrypt :: SerialNumber -> EmotivModel -> ByteString -> EmotivRawData
 decrypt (SerialNumber num) typ encrypted32bytes = makeEmotivRawData decrypted32bytes
   where
     decrypted32bytes = BS.concat [decryptECB key left, decryptECB key right]
@@ -336,6 +339,7 @@ data EmotivDeviceInfo = EmotivDeviceInfo
 data EmotivDevice = EmotivDevice
   { hidapiDevice :: HID.Device                -- ^ The open hidapi device.
   , serial       :: SerialNumber              -- ^ The EEG's serial.
+  , emotivModel  :: EmotivModel               -- ^ Whether the EEG is a consumer or developer model.
   , stateRef     :: IORef (Maybe EmotivState) -- ^ The EEG's cumulative state.
   }
 
@@ -351,8 +355,8 @@ getEmotivDevices = map EmotivDeviceInfo
 
 -- | Opens a given Emotiv device.
 -- Returns an `EmotivDevice` to read from with `readEmotiv`.
-openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
-openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
+openEmotivDevice :: EmotivModel -> EmotivDeviceInfo -> IO EmotivDevice
+openEmotivDevice model EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
   DeviceInfo{ serialNumber = Nothing, path } -> throwIO $ CouldNotReadSerial path
   DeviceInfo{ serialNumber = Just sn } ->
     case makeSerialNumber (BS8.pack sn) of
@@ -363,6 +367,7 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
                       { hidapiDevice = hidDev
                       , serial       = s
                       , stateRef     = stateRef
+                      , emotivModel  = model
                       }
 
 
@@ -372,9 +377,9 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
 --
 -- Returns both the packet read from the device and the updated state.
 readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
-readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef } = do
+readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef, emotivModel } = do
   d32 <- HID.read hidapiDevice 32
-  let decryptedBytes = decrypt serial Consumer d32 -- TODO remove hardcode
+  let decryptedBytes = decrypt serial emotivModel d32
       p              = parsePacket decryptedBytes
 
   -- Update accumulative state

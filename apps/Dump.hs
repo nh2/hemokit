@@ -2,8 +2,8 @@ module Main where
 
 import           Control.Monad
 import           System.IO
-import           Text.Show.Pretty (ppShow)
 import           System.Environment
+import           Text.Show.Pretty (ppShow)
 
 import           Hemokit
 
@@ -12,6 +12,7 @@ main :: IO ()
 main = do
   args <- getArgs
   let packetsOnly = "--packets" `elem` args
+  let model       = if "--developer" `elem` args then Developer else Consumer
 
   devices <- getEmotivDevices
 
@@ -19,7 +20,7 @@ main = do
 
   device <- case devices of
     [] -> error "No devices found."
-    _  -> openEmotivDevice (last devices)
+    _  -> openEmotivDevice model (last devices)
 
   forever $ do
     (state, packet) <- readEmotiv device

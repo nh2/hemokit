@@ -3,9 +3,10 @@ module Main where
 import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Monad
 import           Data.IORef
+import           Graphics.XHB.Connection (connect)
+import           System.Environment
 import           System.IO
 import           Test.Robot
-import           Graphics.XHB.Connection (connect)
 import           Text.Show.Pretty (ppShow)
 
 import           Hemokit
@@ -13,13 +14,15 @@ import           Hemokit
 
 main :: IO ()
 main = do
+  args <- getArgs
+  let model = if "--developer" `elem` args then Developer else Consumer
 
   devices <- getEmotivDevices
 
   putStrLn $ "AvailableDevices:\n" ++ ppShow devices
 
-  device <- openEmotivDevice $ case devices of d:_ -> d
-                                               []  -> error "no Epoc devices found"
+  device <- openEmotivDevice model $ case devices of d:_ -> d
+                                                     []  -> error "no Epoc devices found"
 
   m'xConnection <- connect
   xy <- newIORef (0,0)
