@@ -302,20 +302,18 @@ parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
 
 
 -- | The USB vendor ID of the Emotiv EPOC.
-_EMOTIV_VENDOR_ID :: Word16
+_EMOTIV_VENDOR_ID :: HID.VendorID
 _EMOTIV_VENDOR_ID = 8609
 
 -- | The USB product ID of the Emotiv EPOC.
-_EMOTIV_PRODUCT_ID :: Word16
+_EMOTIV_PRODUCT_ID :: HID.ProductID
 _EMOTIV_PRODUCT_ID = 1
 
 
 -- | Emotiv related errors.
 data EmotivException
-  = InvalidSerialNumber String -- ^ Serial does not have right format.
-                               -- Contains that serial as returned by hidapi.
-  | CouldNotReadSerial String  -- ^ We could not read the serial from the device.
-                               -- Contains path to the device from which reading it failed.
+  = InvalidSerialNumber HID.SerialNumber -- ^ Serial does not have right format.
+  | CouldNotReadSerial HID.DevicePath    -- ^ We could not read the serial from the device.
   | OtherEmotivException String
   deriving (Data, Typeable)
 
