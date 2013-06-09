@@ -45,11 +45,15 @@ module Hemokit
   , getLevel
   , batteryValue
   , qualitySensorFromByte0
+
+  -- * Interactive use
+  , withDataFromLastEEG
   ) where
 
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
+import           Control.Monad
 import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
@@ -405,3 +409,22 @@ readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef, emotivModel } = do
   writeIORef stateRef (Just newState)
 
   return (newState, p)
+
+
+-- | Opens and reads from the last available device, giving all data from it
+-- to the given function.
+--
+-- Intended for use with ghci.
+--
+-- Examples:
+--
+-- >withDataFromLastEEG Consumer print
+-- >withDataFromLastEEG Consumer (print . packetQuality . snd)
+-- >withDataFromLastEEG Consumer (putStrLn . unwords . map show . V.toList . qualities . fst)
+withDataFromLastEEG :: EmotivModel -> ((EmotivState, EmotivPacket) -> IO a) -> IO a
+withDataFromLastEEG model f = do
+  devices <- getEmotivDevices
+  device <- case devices of
+    [] -> error "No devices found."
+    _  -> openEmotivDevice model (last devices)
+  forever $ readEmotiv device >>= f
