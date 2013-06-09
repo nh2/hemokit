@@ -19,6 +19,7 @@ module Hemokit
   , openEmotivDevice
   , readEmotiv
   , EmotivException (..)
+  , SerialNumber ()
 
   -- EEG models
   , EmotivModel (..)
@@ -80,8 +81,8 @@ import           System.HIDAPI (DeviceInfo (..))
 data EmotivModel = Consumer | Developer deriving (Eq, Show)
 
 
--- | A valid Emotiv serial number.
-newtype SerialNumber = SerialNumber ByteString -- must be 16 bytes
+-- | A valid Emotiv serial number. 16 bytes.
+newtype SerialNumber = SerialNumber ByteString deriving (Eq, Show)
 
 -- | Checks an Emotiv serial, returning a `SerialNumber` if it's valid.
 makeSerialNumber :: ByteString -> Maybe SerialNumber
