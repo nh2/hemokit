@@ -30,7 +30,7 @@ module Hemokit
   , allSensors
 
   -- * Dealing with (decrypted) raw data
-  , EmotivRawData ()
+  , EmotivRawData (emotivRawDataBytes)
   , makeEmotivRawData
   , parsePacket
 
@@ -274,7 +274,9 @@ data EmotivState = EmotivState
 
 
 -- | Wraps Emotiv raw data. Ensures that it is 32 bytes.
-newtype EmotivRawData = EmotivRawData ByteString deriving (Eq)
+newtype EmotivRawData = EmotivRawData
+  { emotivRawDataBytes :: ByteString
+  } deriving (Eq)
 
 instance Show EmotivRawData where
   show _ = "[Emotiv raw data]"
