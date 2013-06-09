@@ -10,7 +10,6 @@ module Hemokit
   , _EMOTIV_VENDOR_ID
   , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
-  , primaryDevice
   , openEmotivDevice
   , readEmotivPacket
   ) where
@@ -257,12 +256,14 @@ data EmotivDevice = EmotivDevice
   , lastQualitiesRef :: IORef (Vector Int)
   }
 
+
+-- | Lists all EPOC devices, ordered by interface number.
+-- If you do not actively choose amongst them, the last one is usually the one
+-- you want (especially if only 1 EEG is connected).
 getEmotivDevices :: IO [EmotivDeviceInfo]
-getEmotivDevices = map EmotivDeviceInfo <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
-
-
-primaryDevice :: [EmotivDeviceInfo] -> EmotivDeviceInfo
-primaryDevice = maximumBy (comparing (interfaceNumber . hidapiDeviceInfo))
+getEmotivDevices = map EmotivDeviceInfo
+                 . sortBy (comparing interfaceNumber)
+                 <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
 
 
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice

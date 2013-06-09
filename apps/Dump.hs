@@ -11,11 +11,12 @@ main :: IO ()
 main = do
 
   devices <- getEmotivDevices
-  when (length devices == 0) (error "No devices found.")
 
-  putStrLn $ "AvailableDevices:\n" ++ ppShow devices
+  putStrLn $ "Available devices:\n" ++ ppShow devices
 
-  device <- openEmotivDevice $ primaryDevice devices
+  device <- case devices of
+    [] -> error "No devices found."
+    _  -> openEmotivDevice (last devices)
 
   forever $ do
     emotivPacket <- readEmotivPacket device
