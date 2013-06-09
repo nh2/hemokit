@@ -290,7 +290,7 @@ parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
   { packetRawData = raw
   , packetCounter = if is128c then 128                       else fromIntegral byte0
   , packetBattery = if is128c then Just (batteryValue byte0) else Nothing
-  , packetGyroX   = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
+  , packetGyroX   = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652 -- TODO check this hardcoding
   , packetGyroY   = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
   , packetSensors = V.fromList [ getLevel raw (getSensorMask s) | s <- allSensors ]
   , packetQuality = (, getLevel raw qualityMask) <$> qualitySensorFromByte0 byte0
@@ -298,7 +298,8 @@ parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
   where
     byte0  = byte 0
     byte n = bytes32 `index` n
-    is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
+    is128c = byte0 .&. 128 /= 0 -- Is it the packet which would be sequence no 128?
+                                -- If so, then byte0 is the battery value.
 
 
 -- | The USB vendor ID of the Emotiv EPOC.
@@ -373,7 +374,7 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
 readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
 readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef } = do
   d32 <- HID.read hidapiDevice 32
-  let decryptedBytes = decrypt serial Consumer d32
+  let decryptedBytes = decrypt serial Consumer d32 -- TODO remove hardcode
       p              = parsePacket decryptedBytes
 
   -- Update accumulative state
@@ -391,7 +392,7 @@ readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef } = do
         , sensors   = packetSensors p
         , qualities = maybe lastQualities
                             (\(sensor, qLevel) -> lastQualities V.// [(fromEnum sensor, qLevel)])
-                            (packetQuality p)
+                            (packetQuality p) -- TODO use MVector
         }
 
   writeIORef stateRef (Just newState)
