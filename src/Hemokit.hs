@@ -10,20 +10,41 @@
 --
 -- * You will obtain `EmotivPacket`s and `EmotivState`s.
 module Hemokit
-  ( decrypt
-  , EegType (..)
-  , EmotivException (..)
+  ( -- * Opening and reading from EEGs
+    _EMOTIV_VENDOR_ID
+  , _EMOTIV_PRODUCT_ID
   , EmotivDeviceInfo (..)
   , EmotivDevice (..)
-  , EmotivPacket (..)
-  , EmotivState (..)
-  , EmotivRawData ()
-  , makeEmotivRawData
-  , _EMOTIV_VENDOR_ID
-  , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
   , openEmotivDevice
   , readEmotiv
+  , EmotivException (..)
+
+  -- EEG models
+  , EegType (..)
+
+  -- * EEG data
+  , EmotivPacket (..)
+  , EmotivState (..)
+  , Sensor (..)
+  , allSensors
+
+  -- * Dealing with (decrypted) raw data
+  , EmotivRawData ()
+  , makeEmotivRawData
+  , parsePacket
+
+  -- * Encrypted raw data
+  , decrypt
+
+  -- * Internals
+  , makeSerialNumber
+  , BitMask (..)
+  , getSensorMask
+  , qualityMask
+  , getLevel
+  , batteryValue
+  , qualitySensorFromByte0
   ) where
 
 import           Control.Applicative
