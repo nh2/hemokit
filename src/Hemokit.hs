@@ -48,6 +48,7 @@ module Hemokit
   ) where
 
 import           Control.Applicative
+import           Control.DeepSeq
 import           Control.Exception
 import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
@@ -390,9 +391,11 @@ readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef } = do
         , gyroX     = packetGyroX p
         , gyroY     = packetGyroY p
         , sensors   = packetSensors p
-        , qualities = maybe lastQualities
-                            (\(sensor, qLevel) -> lastQualities V.// [(fromEnum sensor, qLevel)])
-                            (packetQuality p) -- TODO use MVector
+        -- We can't get around an O(n) qualities vector copy here
+        -- if we want `Eq EmotivState`. It's small enough anyway.
+        , qualities = lastQualities `deepseq` case packetQuality p of
+                        Nothing          -> lastQualities
+                        Just (sensor, l) -> lastQualities V.// [(fromEnum sensor, l)]
         }
 
   writeIORef stateRef (Just newState)
