@@ -34,12 +34,12 @@ main = do
       threadDelay 10000
 
   forever $ do
-    emotivPacket <- readEmotivPacket device
-    -- print (qualities emotivPacket)
-    print emotivPacket
-    -- putStrLn $ show (gyroX emotivPacket) ++ " " ++ show (gyroY emotivPacket)
+    (state, _) <- readEmotiv device
+    -- print (qualities state)
+    print state
+    -- putStrLn $ show (gyroX state) ++ " " ++ show (gyroY state)
     hFlush stdout
 
-    modifyIORef' xy $ \(x,y) -> (x + gyroX emotivPacket, y + gyroY emotivPacket)
+    modifyIORef' xy $ \(x,y) -> (x + gyroX state, y + gyroY state)
 
-    return (battery emotivPacket, qualities emotivPacket)
+    return (battery state, qualities state)

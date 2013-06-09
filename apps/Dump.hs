@@ -3,12 +3,15 @@ module Main where
 import           Control.Monad
 import           System.IO
 import           Text.Show.Pretty (ppShow)
+import           System.Environment
 
 import           Hemokit
 
 
 main :: IO ()
 main = do
+  args <- getArgs
+  let packetsOnly = "--packets" `elem` args
 
   devices <- getEmotivDevices
 
@@ -19,6 +22,7 @@ main = do
     _  -> openEmotivDevice (last devices)
 
   forever $ do
-    emotivPacket <- readEmotivPacket device
-    print emotivPacket
+    (state, packet) <- readEmotiv device
+    if packetsOnly then print packet
+                   else print state
     hFlush stdout

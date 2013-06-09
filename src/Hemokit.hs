@@ -1,5 +1,14 @@
-{-# LANGUAGE NamedFieldPuns, DeriveDataTypeable #-}
+{-# LANGUAGE NamedFieldPuns, TupleSections, DeriveDataTypeable #-}
 
+-- | A library for reading from an Emotic EPOC EEG.
+--
+-- * Use `getEmotivDevices` to list available EEGs.
+--
+-- * Use `openEmotivDevice` to open a device for reading.
+--
+-- * Use `readEmotiv` read from an open device.
+--
+-- * You will obtain `EmotivPacket`s and `EmotivState`s.
 module Hemokit
   ( decrypt
   , EegType (..)
@@ -7,11 +16,14 @@ module Hemokit
   , EmotivDeviceInfo (..)
   , EmotivDevice (..)
   , EmotivPacket (..)
+  , EmotivState (..)
+  , EmotivRawData ()
+  , makeEmotivRawData
   , _EMOTIV_VENDOR_ID
   , _EMOTIV_PRODUCT_ID
   , getEmotivDevices
   , openEmotivDevice
-  , readEmotivPacket
+  , readEmotiv
   ) where
 
 import           Control.Applicative
@@ -33,20 +45,27 @@ import qualified System.HIDAPI as HID
 import           System.HIDAPI (DeviceInfo (..))
 
 
+-- | Whether the EPOC is a consumer or developer model.
+--
+-- This affects how the EEG data is to be decrypted.
 data EegType = Consumer | Developer deriving (Eq, Show)
 
 
+-- | A valid Emotiv serial number.
 newtype SerialNumber = SerialNumber ByteString -- must be 16 bytes
 
+-- | Checks an Emotiv serial, returning a `SerialNumber` if it's valid.
 makeSerialNumber :: ByteString -> Maybe SerialNumber
 makeSerialNumber b | BS.length b == 16 = Just $ SerialNumber b
                    | otherwise         = Nothing
 
 
--- Takes 32 bytes encrypted bytestring, returns 32 bytes decrypted bytestring.
-decrypt :: SerialNumber -> EegType -> ByteString -> ByteString
-decrypt (SerialNumber num) typ encrypted32bytes = BS.concat [decryptECB key left, decryptECB key right]
+-- | Takes a 32 bytes encrypted EEG data, returns 32 bytes decrypted EEG data.
+decrypt :: SerialNumber -> EegType -> ByteString -> EmotivRawData
+decrypt (SerialNumber num) typ encrypted32bytes = makeEmotivRawData decrypted32bytes
   where
+    decrypted32bytes = BS.concat [decryptECB key left, decryptECB key right]
+
     (left, right) = BS.splitAt 16 encrypted32bytes
     sn x | x >= 0    = index num x
          | otherwise = sn (BS.length num + x)
@@ -59,6 +78,8 @@ decrypt (SerialNumber num) typ encrypted32bytes = BS.concat [decryptECB key left
       Developer -> [ c 'H', sn (-1), 0   , sn (-2), c 'T', sn (-3), 0x10, sn (-4), c 'B']
     end =          [ sn (-3), 0, sn (-4), c 'P']
 
+-- | The sensors of an Emotiv EPOC.
+-- Uses the names from the International 10-20 system.
 data Sensor
   = F3
   | FC5
@@ -76,13 +97,17 @@ data Sensor
   | F4
   deriving (Eq, Enum, Bounded, Ord, Show)
 
+-- | Contains all `Sensor`s.
 allSensors :: [Sensor]
 allSensors = [minBound .. maxBound]
 
-newtype SensorMask = SensorMask [Word8] deriving (Eq, Show) -- indices of bits
 
-getSensorMask :: Sensor -> SensorMask
-getSensorMask s = SensorMask $ case s of
+-- | Describes the indices of bits to make up a certain value.
+newtype BitMask = BitMask [Word8] deriving (Eq, Show)
+
+-- | Describes which bits in a raw data packet make up the given sensor.
+getSensorMask :: Sensor -> BitMask
+getSensorMask s = BitMask $ case s of
   F3  -> [10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7]
   FC5 -> [28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9]
   AF3 -> [46, 47, 32, 33, 34, 35, 36, 37, 38, 39, 24, 25, 26, 27]
@@ -98,12 +123,14 @@ getSensorMask s = SensorMask $ case s of
   FC6 -> [214, 215, 200, 201, 202, 203, 204, 205, 206, 207, 192, 193, 194, 195]
   F4  -> [216, 217, 218, 219, 220, 221, 222, 223, 208, 209, 210, 211, 212, 213]
 
-qualityMask :: SensorMask
-qualityMask = SensorMask [99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112]
+-- | Describes which bits in a raw data packat make up a sensor quality value.
+qualityMask :: BitMask
+qualityMask = BitMask [99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112]
 
 
-getLevel :: ByteString -> SensorMask -> Int
-getLevel decrypted32bytes (SensorMask sensorBits) = foldr f 0 sensorBits
+-- | Extracts the sensor value for the given sensor from Emotiv raw data.
+getLevel :: EmotivRawData -> BitMask -> Int
+getLevel (EmotivRawData bytes32) (BitMask sensorBits) = foldr f 0 sensorBits
   where
     f :: Word8 -> Int -> Int
     f bitNo level = (level `shiftL` 1) .|. int (bitAt b o)
@@ -112,14 +139,16 @@ getLevel decrypted32bytes (SensorMask sensorBits) = foldr f 0 sensorBits
         o = bitNo .&. 7            :: Word8 -- mod by 8 to get bit offset
 
     bitAt :: Word8 -> Word8 -> Word8
-    bitAt byte bitOffset = ((decrypted32bytes `index` int byte) `shiftR` int bitOffset) .&. 1
+    bitAt byte bitOffset = ((bytes32 `index` int byte) `shiftR` int bitOffset) .&. 1
 
 
+-- | `fromIntegral` shortcut.
 int :: (Integral a) => a -> Int
 int = fromIntegral
 
 
 -- TODO this might have to be adjusted
+-- | Parses a battery percentage value from a byte.
 batteryValue :: Word8 -> Int
 batteryValue batteryByte = case batteryByte of
   b | b >= 248 -> 100
@@ -148,7 +177,8 @@ batteryValue batteryByte = case batteryByte of
   _            -> 0
 
 
--- | Which sensor's quality is transmitted in the packet (depends on first byte).
+-- | Which sensor's quality is transmitted in the packet
+-- (depends on first byte, the packet counter).
 qualitySensorFromByte0 :: Word8 -> Maybe Sensor
 qualitySensorFromByte0 packetNo = case packetNo of
   0  -> Just F3
@@ -189,49 +219,84 @@ qualitySensorFromByte0 packetNo = case packetNo of
 
 
 
+-- | Contains the data of a single packet sent from the device.
+-- Accumulated data (the current state) is available in `EmotivState`.
 data EmotivPacket = EmotivPacket
-  { rawData   :: ByteString
-  , counter   :: Int
-  , battery   :: Int
-  , gyroX     :: Int -- ^ turning "left" gives positive numbers
-  , gyroY     :: Int -- ^ turning "down" gives positive numbers
-  , sensors   :: Vector Int
-  , qualities :: Vector Int
+  { packetRawData :: EmotivRawData       -- ^ the raw data as sent by the EEG
+  , packetCounter :: Int                 -- ^ counts up from 0 to 127 (128 Hz)
+  , packetBattery :: Maybe Int           -- ^ the current battery percentage
+  , packetGyroX   :: Int                 -- ^ turning "left" gives positive numbers
+  , packetGyroY   :: Int                 -- ^ turning "down" gives positive numbers
+  , packetSensors :: Vector Int          -- ^ EEG sensor values
+  , packetQuality :: Maybe (Sensor, Int) -- ^ EEG sensor-to-skin connectivity
   } deriving (Eq, Show)
+
+
+-- | Contains the "current state" of the EEG, cumulateively updated by
+-- incoming `EmotivPacket`s.
+data EmotivState = EmotivState
+  { counter   :: Int        -- ^ counts up from 0 to 127 (128 Hz)
+  , battery   :: Int        -- ^ the current battery percentage
+  , gyroX     :: Int        -- ^ turning "left" gives positive numbers
+  , gyroY     :: Int        -- ^ turning "down" gives positive numbers
+  , sensors   :: Vector Int -- ^ EEG sensor values
+  , qualities :: Vector Int -- ^ EEG sensor-to-skin connectivity
+  } deriving (Eq, Show)
+
+
+-- | Wraps Emotiv raw data. Ensures that it is 32 bytes.
+newtype EmotivRawData = EmotivRawData ByteString deriving (Eq)
+
+instance Show EmotivRawData where
+  show _ = "[Emotiv raw data]"
+
+
+-- | Treat a `ByteString` as Emotiv raw data.
+-- Errors if the input is non 32 bytes.
+makeEmotivRawData :: ByteString -> EmotivRawData
+makeEmotivRawData bytes
+  | BS.length bytes /= 32 = error "Emotiv raw data must be 32 bytes"
+  | otherwise             = EmotivRawData bytes
 
 
 -- I improved the gyro like this:
 -- https://github.com/openyou/emokit/commit/b023a3c195410147dae44a3ce3a6d72f7c16e441
 -- TODO check by graphing if that is really correct vs the old implementation.
 
-makeEmotivPacket :: ByteString -> Int -> Vector Int -> EmotivPacket
-makeEmotivPacket decrypted32bytes lastBattery lastQualities = EmotivPacket
-    { rawData   = BS.empty
-    , counter   = if is128c then 128                else fromIntegral byte0
-    , battery   = if is128c then batteryValue byte0 else lastBattery
-    , gyroX     = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
-    , gyroY     = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
-    , sensors   = V.fromList [ getLevel decrypted32bytes (getSensorMask s) | s <- allSensors ]
-    , qualities = case m'qualitySensor of
-                    Just s -> lastQualities V.// [(fromEnum s, qualityLevel)] -- SUBOPT O(n)
-                    _      -> lastQualities
-    }
+-- | Parses an `EmotivPacket` from raw bytes.
+parsePacket :: EmotivRawData -> EmotivPacket
+parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
+  { packetRawData = raw
+  , packetCounter = if is128c then 128                       else fromIntegral byte0
+  , packetBattery = if is128c then Just (batteryValue byte0) else Nothing
+  , packetGyroX   = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652
+  , packetGyroY   = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
+  , packetSensors = V.fromList [ getLevel raw (getSensorMask s) | s <- allSensors ]
+  , packetQuality = (, getLevel raw qualityMask) <$> qualitySensorFromByte0 byte0
+  }
   where
     byte0  = byte 0
-    byte n = decrypted32bytes `index` n
+    byte n = bytes32 `index` n
     is128c = byte0 .&. 128 /= 0 -- is it the packet which would be sequence no 128?
-    qualityLevel    = getLevel decrypted32bytes qualityMask
-    m'qualitySensor = qualitySensorFromByte0 byte0
 
 
-_EMOTIV_VENDOR_ID, _EMOTIV_PRODUCT_ID :: Word16
+-- | The USB vendor ID of the Emotiv EPOC.
+_EMOTIV_VENDOR_ID :: Word16
 _EMOTIV_VENDOR_ID = 8609
+
+-- | The USB product ID of the Emotiv EPOC.
+_EMOTIV_PRODUCT_ID :: Word16
 _EMOTIV_PRODUCT_ID = 1
 
-data EmotivException = InvalidSerialNumber String
-                     | CouldNotReadSerial String -- ^ with path to the device
-                     | OtherEmotivException String
-                     deriving (Data, Typeable)
+
+-- | Emotiv related errors.
+data EmotivException
+  = InvalidSerialNumber String -- ^ Serial does not have right format.
+                               -- Contains that serial as returned by hidapi.
+  | CouldNotReadSerial String  -- ^ We could not read the serial from the device.
+                               -- Contains path to the device from which reading it failed.
+  | OtherEmotivException String
+  deriving (Data, Typeable)
 
 instance Exception EmotivException
 
@@ -241,15 +306,17 @@ instance Show EmotivException where
   show (OtherEmotivException err) = "Emotiv ERROR: " ++ err
 
 
+-- | Identifies an Emotiv device.
 data EmotivDeviceInfo = EmotivDeviceInfo
-  { hidapiDeviceInfo :: DeviceInfo
+  { hidapiDeviceInfo :: DeviceInfo -- ^ The hidapi device info.
   } deriving (Show)
 
+-- | Identifies an open Emotiv device.
+-- Also contains the cumulative `EmotivState` of the EEG.
 data EmotivDevice = EmotivDevice
-  { hidapiDevice     :: HID.Device
-  , serial           :: SerialNumber
-  , lastBatteryRef   :: IORef Int
-  , lastQualitiesRef :: IORef (Vector Int)
+  { hidapiDevice :: HID.Device                -- ^ The open hidapi device.
+  , serial       :: SerialNumber              -- ^ The EEG's serial.
+  , stateRef     :: IORef (Maybe EmotivState) -- ^ The EEG's cumulative state.
   }
 
 
@@ -262,6 +329,8 @@ getEmotivDevices = map EmotivDeviceInfo
                  <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
 
 
+-- | Opens a given Emotiv device.
+-- Returns an `EmotivDevice` to read from with `readEmotiv`.
 openEmotivDevice :: EmotivDeviceInfo -> IO EmotivDevice
 openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
   DeviceInfo{ serialNumber = Nothing, path } -> throwIO $ CouldNotReadSerial path
@@ -269,27 +338,43 @@ openEmotivDevice EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceInfo of
     case makeSerialNumber (BS8.pack sn) of
       Nothing -> throwIO $ InvalidSerialNumber sn
       Just s  -> do hidDev <- HID.openDeviceInfo hidapiDeviceInfo
-                    batteryRef <- newIORef 0
-                    qualitiesRef <- newIORef $ V.fromList $ map (const 0) allSensors
+                    stateRef <- newIORef Nothing
                     return $ EmotivDevice
-                      { hidapiDevice     = hidDev
-                      , serial           = s
-                      , lastBatteryRef   = batteryRef
-                      , lastQualitiesRef = qualitiesRef
+                      { hidapiDevice = hidDev
+                      , serial       = s
+                      , stateRef     = stateRef
                       }
 
 
-readEmotivPacket :: EmotivDevice -> IO EmotivPacket
-readEmotivPacket EmotivDevice{ hidapiDevice, serial, lastBatteryRef, lastQualitiesRef } = do
+-- | Reads one 32 byte packet from the device, parses the raw bytes into an
+-- `EmotivPacket` and updates the cumulative `EmotivState` that we maintain
+-- for that device.
+--
+-- Returns both the packet read from the device and the updated state.
+readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
+readEmotiv EmotivDevice{ hidapiDevice, serial, stateRef } = do
   d32 <- HID.read hidapiDevice 32
-  let decrypted = decrypt serial Consumer d32
+  let decryptedBytes = decrypt serial Consumer d32
+      p              = parsePacket decryptedBytes
 
-  lastQualities <- readIORef lastQualitiesRef
-  lastBattery <- readIORef lastBatteryRef
+  -- Update accumulative state
 
-  let p = makeEmotivPacket decrypted lastBattery lastQualities
+  lastState <- readIORef stateRef
 
-  writeIORef lastQualitiesRef (qualities p)
-  writeIORef lastBatteryRef (battery p)
+  let lastBattery   = maybe 0 battery lastState
+      lastQualities = maybe (V.replicate (length allSensors) 0) qualities lastState
 
-  return p
+      newState = EmotivState
+        { counter   = packetCounter p
+        , battery   = maybe lastBattery id (packetBattery p)
+        , gyroX     = packetGyroX p
+        , gyroY     = packetGyroY p
+        , sensors   = packetSensors p
+        , qualities = maybe lastQualities
+                            (\(sensor, qLevel) -> lastQualities V.// [(fromEnum sensor, qLevel)])
+                            (packetQuality p)
+        }
+
+  writeIORef stateRef (Just newState)
+
+  return (newState, p)
