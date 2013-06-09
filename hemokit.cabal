@@ -110,4 +110,5 @@ benchmark bench
   build-depends:
       base
     , hemokit
+    , criterion          >= 0.8.0.0
   ghc-options: -Wall
