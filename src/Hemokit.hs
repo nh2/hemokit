@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, TupleSections, DeriveDataTypeable #-}
+{-# LANGUAGE NamedFieldPuns, TupleSections, DeriveDataTypeable, DeriveGeneric #-}
 
 -- | A library for reading from an Emotic EPOC EEG.
 --
@@ -52,7 +52,7 @@ module Hemokit
   ) where
 
 import           Control.Applicative
-import           Control.DeepSeq
+import           Control.DeepSeq.Generics
 import           Control.Exception
 import           Control.Monad
 import           Crypto.Cipher.AES
@@ -68,6 +68,7 @@ import           Data.Word
 import           Data.ByteString as BS (ByteString, index)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
+import           GHC.Generics (Generic)
 import qualified System.HIDAPI as HID
 import           System.HIDAPI (DeviceInfo (..))
 
@@ -78,11 +79,11 @@ import           System.HIDAPI (DeviceInfo (..))
 --
 -- You can check if you are using the correct model by seeing if the packet
 -- `counter` increases from 0 until 128 on subsequent packets.
-data EmotivModel = Consumer | Developer deriving (Eq, Show)
+data EmotivModel = Consumer | Developer deriving (Eq, Show, Generic)
 
 
 -- | A valid Emotiv serial number. 16 bytes.
-newtype SerialNumber = SerialNumber ByteString deriving (Eq, Show)
+newtype SerialNumber = SerialNumber ByteString deriving (Eq, Show, Generic)
 
 -- | Checks an Emotiv serial, returning a `SerialNumber` if it's valid.
 makeSerialNumber :: ByteString -> Maybe SerialNumber
@@ -125,7 +126,7 @@ data Sensor
   | AF4
   | FC6
   | F4
-  deriving (Eq, Enum, Bounded, Ord, Show)
+  deriving (Eq, Enum, Bounded, Ord, Show, Generic)
 
 -- | Contains all `Sensor`s.
 allSensors :: [Sensor]
@@ -259,7 +260,7 @@ data EmotivPacket = EmotivPacket
   , packetGyroY   :: Int                 -- ^ turning "down" gives positive numbers
   , packetSensors :: Vector Int          -- ^ EEG sensor values
   , packetQuality :: Maybe (Sensor, Int) -- ^ EEG sensor-to-skin connectivity
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 
 -- | Contains the "current state" of the EEG, cumulateively updated by
@@ -271,13 +272,13 @@ data EmotivState = EmotivState
   , gyroY     :: Int        -- ^ turning "down" gives positive numbers
   , sensors   :: Vector Int -- ^ EEG sensor values
   , qualities :: Vector Int -- ^ EEG sensor-to-skin connectivity
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 
 -- | Wraps Emotiv raw data. Ensures that it is 32 bytes.
 newtype EmotivRawData = EmotivRawData
   { emotivRawDataBytes :: ByteString
-  } deriving (Eq)
+  } deriving (Eq, Generic)
 
 instance Show EmotivRawData where
   show _ = "[Emotiv raw data]"
@@ -326,7 +327,7 @@ data EmotivException
   = InvalidSerialNumber HID.SerialNumber -- ^ Serial does not have right format.
   | CouldNotReadSerial HID.DevicePath    -- ^ We could not read the serial from the device.
   | OtherEmotivException String
-  deriving (Data, Typeable)
+  deriving (Data, Typeable, Generic)
 
 instance Exception EmotivException
 
@@ -339,7 +340,7 @@ instance Show EmotivException where
 -- | Identifies an Emotiv device.
 data EmotivDeviceInfo = EmotivDeviceInfo
   { hidapiDeviceInfo :: DeviceInfo -- ^ The hidapi device info.
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 -- | Identifies an open Emotiv device.
 -- Also contains the cumulative `EmotivState` of the EEG.
@@ -348,7 +349,7 @@ data EmotivDevice = EmotivDevice
   , serial       :: SerialNumber              -- ^ The EEG's serial.
   , emotivModel  :: EmotivModel               -- ^ Whether the EEG is a consumer or developer model.
   , stateRef     :: IORef (Maybe EmotivState) -- ^ The EEG's cumulative state.
-  }
+  } deriving (Generic)
 
 
 -- | Lists all EPOC devices, ordered by interface number.
@@ -431,3 +432,12 @@ withDataFromLastEEG model f = do
     [] -> error "No devices found."
     _  -> openEmotivDevice model (last devices)
   forever $ readEmotiv device >>= f
+
+
+-- * NFData instances
+instance NFData EmotivDeviceInfo where rnf = genericRnf
+instance NFData EmotivException where rnf = genericRnf
+instance NFData EmotivPacket where rnf = genericRnf
+instance NFData EmotivRawData where rnf = genericRnf
+instance NFData EmotivState where rnf = genericRnf
+instance NFData Sensor where rnf = genericRnf
