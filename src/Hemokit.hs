@@ -283,7 +283,6 @@ makeEmotivRawData bytes
 
 -- I improved the gyro like this:
 -- https://github.com/openyou/emokit/commit/b023a3c195410147dae44a3ce3a6d72f7c16e441
--- TODO check by graphing if that is really correct vs the old implementation.
 
 -- | Parses an `EmotivPacket` from raw bytes.
 parsePacket :: EmotivRawData -> EmotivPacket
