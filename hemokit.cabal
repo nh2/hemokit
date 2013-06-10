@@ -83,6 +83,23 @@ executable hemokit-fft
   ghc-options: -Wall
 
 
+executable hemokit-headmap
+  default-language: Haskell2010
+  hs-source-dirs:
+    apps
+  main-is:
+    Headmap.hs
+  build-depends:
+      base
+    , hemokit
+    , cairo             >= 0.12.4
+    , gtk               >= 0.12.4
+    , mtl               >= 2.1.2
+    , pretty-show       >= 1.0
+    , svgcairo          >= 0.12.1.1
+  ghc-options: -Wall
+
+
 test-suite tests
   default-language: Haskell2010
   type: exitcode-stdio-1.0
