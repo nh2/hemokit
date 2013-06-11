@@ -97,6 +97,7 @@ executable hemokit-headmap
     , mtl               >= 2.1.2
     , pretty-show       >= 1.0
     , svgcairo          >= 0.12.1.1
+    , vector            >= 0.9
   ghc-options: -Wall
 
 
