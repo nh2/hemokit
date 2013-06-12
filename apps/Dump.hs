@@ -3,6 +3,8 @@
 module Main where
 
 import           Control.Monad
+import           Data.List
+import           Data.Maybe
 import           Options.Applicative
 import           System.IO
 import           Text.Show.Pretty (ppShow)
@@ -66,7 +68,10 @@ main = do
 
       case devices of
         [] -> error "No devices found."
-        _  -> openEmotivDevice model (last devices)
+        _  -> openEmotivDevice model $ case serial of
+          Just s -> fromMaybe (error $ "No device with serial " ++ show s)
+                              (find ((Just s ==) . deviceInfoSerial) devices)
+          _      -> last devices
 
   forever $ do
     (state, packet) <- readEmotiv device

@@ -24,6 +24,7 @@ module Hemokit
   , SerialNumber ()
   , makeSerialNumber
   , makeSerialNumberFromString
+  , deviceInfoSerial
 
   -- EEG models
   , EmotivModel (..)
@@ -350,6 +351,7 @@ data EmotivDeviceInfo = EmotivDeviceInfo
   { hidapiDeviceInfo :: DeviceInfo -- ^ The hidapi device info.
   } deriving (Show, Generic)
 
+
 -- | An "open" data source to read bytes from.
 data EmotivRawDevice
   = HidapiDevice
@@ -359,6 +361,7 @@ data EmotivRawDevice
       { handleDevice :: Handle -- ^ A conventional `Handle`, e.g. an open file.
       } deriving (Generic)
 
+
 -- | Identifies an open Emotiv device.
 -- Also contains the cumulative `EmotivState` of the EEG.
 data EmotivDevice = EmotivDevice
@@ -367,6 +370,11 @@ data EmotivDevice = EmotivDevice
   , emotivModel  :: EmotivModel               -- ^ Whether the EEG is a consumer or developer model.
   , stateRef     :: IORef (Maybe EmotivState) -- ^ The EEG's cumulative state.
   } deriving (Generic)
+
+
+-- | Conveniently expose the serial number of a device.
+deviceInfoSerial :: EmotivDeviceInfo -> Maybe SerialNumber
+deviceInfoSerial = (>>= makeSerialNumberFromString) . serialNumber . hidapiDeviceInfo
 
 
 -- | Lists all EPOC devices, ordered by interface number.
