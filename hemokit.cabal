@@ -62,7 +62,8 @@ executable hemokit-dump
   build-depends:
       base
     , hemokit
-    , pretty-show       >= 1.0
+    , optparse-applicative >= 0.5.2.1
+    , pretty-show          >= 1.0
   ghc-options: -Wall
 
 
