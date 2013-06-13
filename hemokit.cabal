@@ -1,8 +1,8 @@
 name:          hemokit
 version:       0.3.0
 license:       MIT
-copyright:     2013 Niklas Hambüchen <mail@nh2.me>
-author:        Niklas Hambüchen <mail@nh2.me>
+copyright:     2013 Niklas Hambüchen <mail@nh2.me>, Patrick Chilton <chpatrick@gmail.com>
+author:        Niklas Hambüchen <mail@nh2.me>, Patrick Chilton <chpatrick@gmail.com>
 maintainer:    Niklas Hambüchen <mail@nh2.me>
 category:      Bioinformatics
 build-type:    Simple
