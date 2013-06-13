@@ -8,6 +8,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
 import           Numeric.FFT.Vector.Unnormalized
 import           System.Environment
+import           Text.Printf
 
 import           Hemokit
 
@@ -27,8 +28,10 @@ transposeV :: Int -> [ V.Vector a ] -> [ V.Vector a ]
 transposeV n vs = [ V.fromList (map (V.! i) vs) | i <- [ 0 .. n - 1 ] ]
 
 showFFT :: V.Vector Double -> String
-showFFT ms = map (toChar . (/(V.maximum ms))) $ V.toList ms
+-- showFFT ms = map (toChar . (/(V.maximum ms))) $ V.toList ms
+showFFT ms = unwords . map (formatNumber . (/ V.maximum ms)) $ V.toList ms
     where
+      formatNumber n = printf "%2.0f" (n*100)
       toChar m
         | m < 0.25 = ' '
         | m < 0.5  = '.'

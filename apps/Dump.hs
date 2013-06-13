@@ -3,78 +3,49 @@
 module Main where
 
 import           Control.Monad
-import           Data.List
-import           Data.Maybe
-import           Options.Applicative
+import           Options.Applicative hiding (action)
 import           System.IO
-import           Text.Show.Pretty (ppShow)
+import           Text.Show.Pretty
 
-import           Hemokit hiding (serial)
+import           Hemokit
+import           Hemokit.Start
 
 
 data DumpArgs = DumpArgs
-  { model       :: EmotivModel
-  , serial      :: Maybe SerialNumber
-  , packetsOnly :: Bool
-  , fromFile    :: Maybe FilePath
-  -- , bla         :: FilePath
-  } deriving (Eq, Show)
+  { emotivArgs  :: EmotivArgs
+  , packetsOnly :: Bool -- ^ Only print hardware-sent information, not cumulative state.
+  , listDevices :: Bool -- ^ Do not do anything, print available devices.
+  }
 
-parseModel :: Monad m => String -> m EmotivModel
-parseModel s = case s of
-  "consumer"  -> return Consumer
-  "developer" -> return Developer
-  _           -> fail "Model is not valid. Must be 'consumer' or 'developer'."
-
-
-dumpArgs :: Parser DumpArgs
-dumpArgs = DumpArgs
-  <$> nullOption
-      ( long "model" <> metavar "MODEL"
-        <> reader parseModel <> value Consumer
-        <> help "Consumer or Developer model" )
-  <*> (optional . nullOption)
-      ( long "serial" <> metavar "SERIALNUMBER"
-        <> maybeReader makeSerialNumberFromString "Serial number of has invalid format"
-        <> help "The serial to use. If no --from-file is given, this will select the device" )
+dumpArgsParser :: Parser DumpArgs
+dumpArgsParser = DumpArgs
+  <$> emotivArgsParser
   <*> switch
       ( long "packets-only"
         <> help "Dump packets as sent from the device instead of cumulative state" )
-  <*> (optional . strOption)
-      ( long "from-file" <> metavar "PATH"
-        <> help "The file path to read from (e.g. /dev/hidraw0 or myfile.dump)" )
-  -- <*> strOption
-  --     ( long "from-filea" <> metavar "PATH"
-  --       <> help "The file path to read from (e.g. /dev/hidraw0 or myfile.dump)" )
-  where
-    maybeReader mbFn msg = reader $ maybe (fail msg) pure . mbFn
+  <*> switch
+      ( long "list"
+        <> help "Show all available Emotiv devices and exit" )
 
 
 main :: IO ()
 main = do
-  DumpArgs{ model, serial, packetsOnly, fromFile
-          } <- execParser $ info (helper <*> dumpArgs) (progDesc "Dumps Emotiv data")
+  DumpArgs{ emotivArgs
+          , packetsOnly
+          , listDevices
+          } <- execParser $ info (helper <*> dumpArgsParser)
+                                 (progDesc "Dumps Emotiv data")
 
-  device <- case fromFile of
-    -- Use device file / file handle
-    Just f | Just s <- serial -> openEmotivDeviceFile model s f
-           | otherwise        -> error "A serial number must be provided when using --from-file"
+  if listDevices -- Only list devices
+    then getEmotivDevices >>= putStrLn . ("Available devices:\n" ++) . ppShow
+    else do
+      e'device <- getEmotivDeviceFromArgs emotivArgs
 
-    -- Use HIDAPI
-    Nothing -> do
-      devices <- getEmotivDevices
+      case e'device of
+        Left err     -> error err
+        Right device -> forever $ do
 
-      putStrLn $ "Available devices:\n" ++ ppShow devices
-
-      case devices of
-        [] -> error "No devices found."
-        _  -> openEmotivDevice model $ case serial of
-          Just s -> fromMaybe (error $ "No device with serial " ++ show s)
-                              (find ((Just s ==) . deviceInfoSerial) devices)
-          _      -> last devices
-
-  forever $ do
-    (state, packet) <- readEmotiv device
-    if packetsOnly then print packet
-                   else print state
-    hFlush stdout
+          (state, packet) <- readEmotiv device
+          if packetsOnly then print packet
+                         else print state
+          hFlush stdout

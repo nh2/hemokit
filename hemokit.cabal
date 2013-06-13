@@ -24,6 +24,7 @@ source-repository head
 library
   exposed-modules:
     Hemokit
+    Hemokit.Start
   build-depends:
       base                   >= 4 && < 5
     , bytestring             >= 0.9.2.1
@@ -31,7 +32,7 @@ library
     , deepseq                >= 1.2
     , deepseq-generics       >= 0.1
     , hidapi                 >= 1.0
-    , pretty-show            >= 1.0
+    , optparse-applicative   >= 0.5.2.1
     , vector                 >= 0.9
   hs-source-dirs:
     src
