@@ -7,10 +7,10 @@ maintainer:    Niklas Hambüchen <mail@nh2.me>
 category:      Bioinformatics
 build-type:    Simple
 stability:     experimental
-tested-With:   GHC==7.4.2
+tested-with:   GHC==7.6.2
 cabal-version: >= 1.10
 homepage:      https://github.com/nh2/haskell-hemokit
-bug-Reports:   https://github.com/nh2/haskell-hemokit/issues
+bug-reports:   https://github.com/nh2/haskell-hemokit/issues
 synopsis:      Haskell port of the Emokit EEG project
 description:
   This package allows reading raw data from the Emotiv EEG devices.
