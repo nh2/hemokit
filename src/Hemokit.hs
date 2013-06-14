@@ -36,7 +36,7 @@ module Hemokit
   , allSensors
 
   -- * Dealing with (decrypted) raw data
-  , EmotivRawData (emotivRawDataBytes)
+  , EmotivRawData (..)
   , makeEmotivRawData
   , parsePacket
 
