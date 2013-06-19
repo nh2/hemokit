@@ -287,10 +287,7 @@ data EmotivState = EmotivState
 -- | Wraps (unencrypted) Emotiv raw data. Ensures that it is 32 bytes.
 newtype EmotivRawData = EmotivRawData
   { emotivRawDataBytes :: ByteString
-  } deriving (Eq, Generic)
-
-instance Show EmotivRawData where
-  show _ = "[Emotiv raw data]"
+  } deriving (Eq, Show, Generic)
 
 
 -- | Treat a `ByteString` as Emotiv raw data.
