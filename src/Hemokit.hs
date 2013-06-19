@@ -37,6 +37,7 @@ module Hemokit
 
   -- * Dealing with (decrypted) raw data
   , EmotivRawData (..)
+  , readEmotivRaw
   , makeEmotivRawData
   , parsePacket
 
@@ -262,8 +263,7 @@ qualitySensorFromByte0 packetNo = case packetNo of
 -- | Contains the data of a single packet sent from the device.
 -- Accumulated data (the current state) is available in `EmotivState`.
 data EmotivPacket = EmotivPacket
-  { packetRawData :: EmotivRawData       -- ^ the raw data as sent by the EEG
-  , packetCounter :: Int                 -- ^ counts up from 0 to 127 (128 Hz)
+  { packetCounter :: Int                 -- ^ counts up from 0 to 127 (128 Hz)
   , packetBattery :: Maybe Int           -- ^ the current battery percentage
   , packetGyroX   :: Int                 -- ^ turning "left" gives positive numbers
   , packetGyroY   :: Int                 -- ^ turning "down" gives positive numbers
@@ -284,7 +284,7 @@ data EmotivState = EmotivState
   } deriving (Eq, Show, Generic)
 
 
--- | Wraps Emotiv raw data. Ensures that it is 32 bytes.
+-- | Wraps (unencrypted) Emotiv raw data. Ensures that it is 32 bytes.
 newtype EmotivRawData = EmotivRawData
   { emotivRawDataBytes :: ByteString
   } deriving (Eq, Generic)
@@ -307,8 +307,7 @@ makeEmotivRawData bytes
 -- | Parses an `EmotivPacket` from raw bytes.
 parsePacket :: EmotivRawData -> EmotivPacket
 parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
-  { packetRawData = raw
-  , packetCounter = if is128c then 128                       else fromIntegral byte0
+  { packetCounter = if is128c then 128                       else fromIntegral byte0
   , packetBattery = if is128c then Just (batteryValue byte0) else Nothing
   , packetGyroX   = ((int (byte 29) `shiftL` 4) .|. int (byte 31 `shiftR` 4)) - 1652 -- TODO check this hardcoding
   , packetGyroY   = ((int (byte 30) `shiftL` 4) .|. int (byte 31   .&. 0x0F)) - 1681
@@ -418,18 +417,25 @@ openEmotivDeviceFile model sn path = do
     }
 
 
+-- | Reads one 32 byte packet from the device and decrypts it to raw data.
+readEmotivRaw :: EmotivDevice -> IO EmotivRawData
+readEmotivRaw EmotivDevice{ rawDevice, serial, emotivModel } = do
+
+  d32 <- case rawDevice of HidapiDevice d -> HID.read d 32
+                           HandleDevice d -> BS.hGet d 32
+
+  return $ decrypt serial emotivModel d32
+
+
 -- | Reads one 32 byte packet from the device, parses the raw bytes into an
 -- `EmotivPacket` and updates the cumulative `EmotivState` that we maintain
 -- for that device.
 --
 -- Returns both the packet read from the device and the updated state.
 readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
-readEmotiv EmotivDevice{ rawDevice, serial, stateRef, emotivModel } = do
-  d32 <- case rawDevice of
-    HidapiDevice d -> HID.read d 32
-    HandleDevice d -> BS.hGet d 32
-  let decryptedBytes = decrypt serial emotivModel d32
-      p              = parsePacket decryptedBytes
+readEmotiv device@EmotivDevice{ stateRef } = do
+
+  p <- parsePacket <$> readEmotivRaw device
 
   -- Update accumulative state
 

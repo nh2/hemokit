@@ -6,6 +6,7 @@ module Main where
 import           Control.Monad
 import           Data.Aeson (ToJSON (..), encode)
 import           Data.ByteString.Lazy.Char8 (unpack)
+import qualified Data.ByteString.Base64 as Base64
 import           Data.List
 import           Data.List.Split (splitOn)
 import           Options.Applicative hiding (action)
@@ -102,7 +103,12 @@ main = do
 
 
 -- * JSON instances
+
 instance ToJSON EmotivPacket
-instance ToJSON EmotivRawData
 instance ToJSON EmotivState
-instance ToJSON Sensor where toJSON = toJSON . show
+
+instance ToJSON EmotivRawData where
+  toJSON = toJSON . Base64.encode . emotivRawDataBytes
+
+instance ToJSON Sensor where
+  toJSON = toJSON . show
