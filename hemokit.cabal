@@ -13,8 +13,28 @@ homepage:      https://github.com/nh2/haskell-hemokit
 bug-reports:   https://github.com/nh2/haskell-hemokit/issues
 synopsis:      Haskell port of the Emokit EEG project
 description:
-  This package allows reading raw data from the Emotiv EEG devices.
-
+  This package allows reading raw data from the Emotiv EPOC EEG devices.
+  .
+  It is inspired and based on the code of the Emokit project
+  (<https://github.com/openyou/emokit>), but entirely written in Haskell.
+  .
+  It contains an extensive, well-documented library for connecting to devices,
+  decrypting the stream, and parsing the relevant data out.
+  .
+  Data can be read from a given device via HIDAPI-hidraw or a dump file;
+  reading from multiple devices is supported and when only one EEG is to
+  be used, the correct device is automatically selected.
+  .
+  There is also an executable, @hemokit-dump@, that can print out
+  .
+  * raw data
+  .
+  * incremental packets as sent from the device
+  .
+  * the cumulative /state/ of the EEG
+  .
+  in both their plain form and as JSON, and optionally serve any of this
+  via Websockets.
 
 source-repository head
   type:      git
