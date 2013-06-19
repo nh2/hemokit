@@ -5,7 +5,8 @@ module Main where
 
 import           Control.Monad
 import           Data.Aeson (ToJSON (..), encode)
-import           Data.ByteString.Lazy.Char8 (unpack)
+import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
 import           Data.List
 import           Data.List.Split (splitOn)
@@ -23,19 +24,24 @@ import           WebsocketUtils (makeJsonOrShowWSServer, JsonShowable (..))
 -- | Arguments for the EEG dump application.
 data DumpArgs = DumpArgs
   { emotivArgs  :: EmotivArgs
-  , packetsOnly :: Bool -- ^ Only print hardware-sent information, not cumulative state.
-  , listDevices :: Bool -- ^ Do not do anything, print available devices.
-  , json        :: Bool -- ^ Whether to format the output as JSON.
+  , mode        :: DumpMode -- ^ What to dump.
+  , listDevices :: Bool     -- ^ Do not do anything, print available devices.
+  , json        :: Bool     -- ^ Whether to format the output as JSON.
   , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
   }
+
+-- | Whether to dump raw data, hardware-sent packages or cumulative states.
+data DumpMode = Raw | Packets | State deriving (Eq, Show)
+
 
 -- | Parser for `DumpArgs`.
 dumpArgsParser :: Parser DumpArgs
 dumpArgsParser = DumpArgs
   <$> emotivArgsParser
-  <*> switch
-      ( long "packets-only"
-        <> help "Dump packets as sent from the device instead of cumulative state" )
+  <*> nullOption
+      ( long "mode"
+        <> reader parseDumpMode <> value State
+        <> help "What to dump. Can be 'raw', 'packets', or 'state'" )
   <*> switch
       ( long "list"
         <> help "Show all available Emotiv devices and exit" )
@@ -50,6 +56,15 @@ dumpArgsParser = DumpArgs
   where
     -- TODO https://github.com/pcapriotti/optparse-applicative/issues/48
     eitherReader str2either = reader (either fail return . str2either)
+
+
+-- | `DumpMode` command line parser.
+parseDumpMode :: Monad m => String -> m DumpMode
+parseDumpMode s = case s of
+  "raw"     -> return Raw
+  "packets" -> return Packets
+  "state"   -> return State
+  _         -> fail "Mode is not valid. Must be 'raw', 'packets', or 'state'."
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
@@ -68,7 +83,7 @@ parseHostPort hostPort = case readMaybe portStr of
 main :: IO ()
 main = do
   DumpArgs{ emotivArgs
-          , packetsOnly
+          , mode
           , listDevices
           , json
           , serve
@@ -89,16 +104,24 @@ main = do
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           output <- case serve of
-            Nothing           -> return (putStrLn . if json then unpack . encode else show)
+            Nothing           -> return (putStrLn . if json then BSL8.unpack . encode else show)
             Just (host, port) -> makeJsonOrShowWSServer host port json
 
           -- Packet loop
           forever $ do
-            (state, packet) <- readEmotiv device
 
-            -- Output accumulative state or device-sent packet?
-            if packetsOnly then output (JsonShowable packet)
-                           else output (JsonShowable state)
+            -- Output accumulative state, device-sent packet, or raw data?
+            case mode of
+              Packets -> do (_, packet) <- readEmotiv device
+                            output (JsonShowable packet)
+
+              State   -> do (state, _) <- readEmotiv device
+                            output (JsonShowable state)
+
+              Raw     -> do rawBytes <- readEmotivRaw device
+                            if json then output (JsonShowable rawBytes)
+                                    else BS8.putStr (emotivRawDataBytes rawBytes)
+
             hFlush stdout
 
 
