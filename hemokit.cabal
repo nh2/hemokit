@@ -38,7 +38,7 @@ description:
 
 source-repository head
   type:      git
-  location:  git://github.com/nh2/haskell-hemokit.git
+  location:  git://github.com/nh2/hemokit.git
 
 
 library
