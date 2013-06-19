@@ -40,6 +40,7 @@ module Hemokit
   , readEmotivRaw
   , makeEmotivRawData
   , parsePacket
+  , updateEmotivState
 
   -- * Encrypted raw data
   , decrypt
@@ -424,15 +425,23 @@ readEmotivRaw EmotivDevice{ rawDevice, serial, emotivModel } = do
   return $ decrypt serial emotivModel d32
 
 
--- | Reads one 32 byte packet from the device, parses the raw bytes into an
+-- | Given a device and a Emotiv raw data, parses the raw data into an
 -- `EmotivPacket` and updates the cumulative `EmotivState` that we maintain
 -- for that device.
 --
+-- Care should be taken that raw data is fed into this function in the right
+-- order (e.g. respecting the EEG's increasing sequence numbers and quality
+-- updates).
+--
+-- This function is only neededif you want to obtain both raw data and
+-- parsed packages.
+-- If you are not interested in raw data, use `readEmotiv` instead.
+--
 -- Returns both the packet read from the device and the updated state.
-readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
-readEmotiv device@EmotivDevice{ stateRef } = do
+updateEmotivState :: EmotivDevice -> EmotivRawData -> IO (EmotivState, EmotivPacket)
+updateEmotivState EmotivDevice{ stateRef } rawData = do
 
-  p <- parsePacket <$> readEmotivRaw device
+  let p = parsePacket rawData
 
   -- Update accumulative state
 
@@ -457,6 +466,15 @@ readEmotiv device@EmotivDevice{ stateRef } = do
   writeIORef stateRef (Just newState)
 
   return (newState, p)
+
+
+-- | Reads one 32 byte packet from the device, parses the raw bytes into an
+-- `EmotivPacket` and updates the cumulative `EmotivState` that we maintain
+-- for that device.
+--
+-- Returns both the packet read from the device and the updated state.
+readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
+readEmotiv device = updateEmotivState device =<< readEmotivRaw device
 
 
 -- | Opens and reads from the last available device, giving all data from it
