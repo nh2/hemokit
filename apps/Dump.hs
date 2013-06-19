@@ -45,8 +45,8 @@ dumpArgsParser = DumpArgs
   <*> (optional . nullOption)
       ( long "serve" <> metavar "HOST:PORT"
         <> eitherReader parseHostPort
-        <> help ("Serve output via websockets on this address, e.g. 127.0.0.1:1234 " ++
-                 "(port 1234, only localhost) or 0.0.0.0:1234 (port 1234, all interfaces)") )
+        <> help ("Serve output via websockets, e.g. 127.0.0.1:1234 " ++
+                 "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces)") )
   where
     -- TODO https://github.com/pcapriotti/optparse-applicative/issues/48
     eitherReader str2either = reader (either fail return . str2either)
