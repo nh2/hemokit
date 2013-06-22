@@ -3,6 +3,7 @@
 
 module Main where
 
+import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Data.Aeson (ToJSON (..), encode)
 import qualified Data.ByteString.Char8 as BS8
@@ -10,6 +11,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
 import           Data.List
 import           Data.List.Split (splitOn)
+import           Data.Time.Clock
 import           Options.Applicative hiding (action)
 import           System.IO
 import           Text.Read
@@ -25,6 +27,7 @@ import           WebsocketUtils (makeJsonOrShowWSServer, JsonShowable (..))
 data DumpArgs = DumpArgs
   { emotivArgs  :: EmotivArgs
   , mode        :: DumpMode -- ^ What to dump.
+  , realtime    :: Bool     -- ^ In case fromFile is used, throttle to 128 Hz.
   , listDevices :: Bool     -- ^ Do not do anything, print available devices.
   , json        :: Bool     -- ^ Whether to format the output as JSON.
   , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
@@ -42,6 +45,9 @@ dumpArgsParser = DumpArgs
       ( long "mode"
         <> reader parseDumpMode <> value State
         <> help "What to dump. Can be 'raw', 'packets', or 'state'" )
+  <*> switch
+      ( long "realtime"
+        <> help "In case --from-file is used, throttle data to 128 Hz like on real device" )
   <*> switch
       ( long "list"
         <> help "Show all available Emotiv devices and exit" )
@@ -84,6 +90,7 @@ main :: IO ()
 main = do
   DumpArgs{ emotivArgs
           , mode
+          , realtime
           , listDevices
           , json
           , serve
@@ -110,6 +117,8 @@ main = do
           -- Packet loop
           forever $ do
 
+            timeBefore <- getCurrentTime
+
             -- Output accumulative state, device-sent packet, or raw data?
             case mode of
               Packets -> do (_, packet) <- readEmotiv device
@@ -123,6 +132,14 @@ main = do
                                     else BS8.putStr (emotivRawDataBytes rawBytes)
 
             hFlush stdout
+
+            -- When realtime is on, throttle the reading to 1/129 (a real
+            -- device's frequency). But take into the account the time that
+            -- we have spent reading from the device.
+            when realtime $ do
+              timeTaken <- (`diffUTCTime` timeBefore) <$> getCurrentTime
+              let delayUs = 1000000 `div` 129 - round (timeTaken * 1000000)
+              when (delayUs > 0) $ threadDelay delayUs
 
 
 -- * JSON instances

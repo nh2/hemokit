@@ -90,6 +90,7 @@ executable hemokit-dump
     , optparse-applicative   >= 0.5.2.1
     , pretty-show            >= 1.0
     , split                  >= 0.2.2
+    , time                   >= 1.4.0.1
     , transformers           >= 0.3.0.0
     , websockets             >= 0.7.3.0
   ghc-options: -Wall
