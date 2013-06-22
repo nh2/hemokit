@@ -1,6 +1,5 @@
 module Main where
 
-import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Complex
@@ -15,9 +14,11 @@ import           Text.Printf
 
 import           Hemokit
 
+import           Utils (untilNothing)
+
 
 packets :: EmotivDevice -> Source IO EmotivState
-packets d = forever (liftIO (readEmotiv d) >>= yield . fst)
+packets d = void $ untilNothing (liftIO (readEmotiv d)) (yield . fst)
 
 buffer :: Monad m => Int -> Conduit a m [ a ]
 buffer n = forever (CL.take n >>= yield)

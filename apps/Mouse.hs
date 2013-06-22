@@ -11,6 +11,8 @@ import           Text.Show.Pretty (ppShow)
 
 import           Hemokit
 
+import           Utils (untilNothing)
+
 
 main :: IO ()
 main = do
@@ -36,13 +38,11 @@ main = do
       runRobotWithConnection (moveBy ((-x) `quot` 10) (y `quot` 10)) xc
       threadDelay 10000
 
-  forever $ do
-    (state, _) <- readEmotiv device
+  void $ untilNothing (readEmotiv device) $ \(state, _) -> do
+
     -- print (qualities state)
     print state
     -- putStrLn $ show (gyroX state) ++ " " ++ show (gyroY state)
     hFlush stdout
 
     modifyIORef' xy $ \(x,y) -> (x + gyroX state, y + gyroY state)
-
-    return (battery state, qualities state)

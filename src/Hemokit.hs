@@ -61,7 +61,6 @@ module Hemokit
 import           Control.Applicative
 import           Control.DeepSeq.Generics
 import           Control.Exception
-import           Control.Monad
 import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
@@ -423,13 +422,21 @@ openEmotivDeviceHandle model sn h = do
 
 
 -- | Reads one 32 byte packet from the device and decrypts it to raw data.
-readEmotivRaw :: EmotivDevice -> IO EmotivRawData
+--
+-- Returns Nothing on end of input (or if there are < 32 bytes before it).
+--
+-- Note that if the EEG is (turned) off, this function block until
+-- it is turned on again.
+readEmotivRaw :: EmotivDevice -> IO (Maybe EmotivRawData)
 readEmotivRaw EmotivDevice{ rawDevice, serial, emotivModel } = do
 
   d32 <- case rawDevice of HidapiDevice d -> HID.read d 32
                            HandleDevice d -> BS.hGet d 32
 
-  return $ decrypt serial emotivModel d32
+  -- If we get less than the requested 32 bytes, we're at EOF.
+  return $ if BS.length d32 < 32
+             then Nothing
+             else Just $ decrypt serial emotivModel d32
 
 
 -- | Given a device and a Emotiv raw data, parses the raw data into an
@@ -480,12 +487,20 @@ updateEmotivState EmotivDevice{ stateRef } rawData = do
 -- for that device.
 --
 -- Returns both the packet read from the device and the updated state.
-readEmotiv :: EmotivDevice -> IO (EmotivState, EmotivPacket)
-readEmotiv device = updateEmotivState device =<< readEmotivRaw device
+--
+-- Returns Nothing on end of input (or if there are < 32 bytes before it).
+--
+-- Note that if the EEG is (turned) off, this function block until
+-- it is turned on again.
+readEmotiv :: EmotivDevice -> IO (Maybe (EmotivState, EmotivPacket))
+readEmotiv device = do m'raw <- readEmotivRaw device
+                       case m'raw of
+                         Nothing  -> return Nothing
+                         Just raw -> Just <$> updateEmotivState device raw
 
 
 -- | Opens and reads from the last available device, giving all data from it
--- to the given function.
+-- to the given function. Stops if end of input is reached.
 --
 -- Intended for use with ghci.
 --
@@ -494,13 +509,16 @@ readEmotiv device = updateEmotivState device =<< readEmotivRaw device
 -- >withDataFromLastEEG Consumer print
 -- >withDataFromLastEEG Consumer (print . packetQuality . snd)
 -- >withDataFromLastEEG Consumer (putStrLn . unwords . map show . V.toList . qualities . fst)
-withDataFromLastEEG :: EmotivModel -> ((EmotivState, EmotivPacket) -> IO a) -> IO a
+withDataFromLastEEG :: EmotivModel -> ((EmotivState, EmotivPacket) -> IO ()) -> IO ()
 withDataFromLastEEG model f = do
   devices <- getEmotivDevices
   device <- case devices of
     [] -> error "No devices found."
     _  -> openEmotivDevice model (last devices)
-  forever $ readEmotiv device >>= f
+  let run = do m'd <- readEmotiv device
+               case m'd of Nothing -> return () -- terminate
+                           Just d  -> f d >> run
+  run
 
 
 -- * NFData instances
