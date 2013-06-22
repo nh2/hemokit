@@ -1,5 +1,6 @@
 module Main where
 
+import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Complex
@@ -9,6 +10,7 @@ import           Data.List
 import qualified Data.Vector as V
 import           Numeric.FFT.Vector.Unnormalized
 import           System.Environment
+import           System.IO
 import           Text.Printf
 
 import           Hemokit
@@ -20,10 +22,33 @@ packets d = forever (liftIO (readEmotiv d) >>= yield . fst)
 buffer :: Monad m => Int -> Conduit a m [ a ]
 buffer n = forever (CL.take n >>= yield)
 
+
+-- | Rolls a buffer of size n over the input, always taking one element in,
+-- throwing an old one out.
+-- Only starts returning buffers once the buffer is filled.
+--
+-- Implemented using a Difference List.
+-- This allows fast skipping of buffers, e.g. for using only every 5th one.
+rollingBuffer :: (Monad m) => Int -> Conduit a m [ a ]
+rollingBuffer 0 = return ()
+rollingBuffer n | n < 0     = error "rollingBuffer: negative buffer size"
+                | otherwise = fillup 0 id
+  where
+    -- Consume until buffer is filled with n elements.
+    fillup have front
+      | have < n  = await >>= maybe (return ()) (\x -> fillup (have+1) (front . (x:)))
+      | otherwise = roll front
+    -- Then keep kicking one element out, taking a new element in, yielding the buffer each time.
+    roll front = do yield (front [])
+                    await >>= maybe (return ()) (\x -> roll (tail . front . (x:)))
+
+
 printAll :: Sink [V.Vector Double] IO ()
 -- printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map showFFT tds))
-printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT tds))
--- printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT [last tds]))
+-- printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT tds))
+printAll = do
+  liftIO $ hSetBuffering stdout (BlockBuffering (Just 8000))
+  awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT [last tds])) >> hFlush stdout -- >> threadDelay 1000000
 
 
 -- | Converts a length M list of length N vectors into a length N list of length M vectors.
@@ -45,7 +70,8 @@ showFFT ms = unwords . V.toList . V.map (formatNumber . maxed) $ ms
 
 
 graphFFT :: V.Vector Double -> String
-graphFFT ms = (unlines . transpose . V.toList . V.map (formatNumber . maxed) $ ms) ++ showFFT ms
+-- graphFFT ms = (unlines . transpose . V.toList . V.map (formatNumber . maxed) $ ms) ++ showFFT ms
+graphFFT ms = (unlines . transpose . V.toList . V.map (formatNumber . maxed) $ ms)
     where
       maxed = (/ V.maximum ms)
       formatNumber n = replicate space ' ' ++ replicate filled '|'
@@ -63,6 +89,7 @@ toChar m
   | otherwise = '#'
 
 -- | Reduces a data series by its average.
+-- This is useful to bring a signal moving around at some level "to the ground".
 -- Example: 4 5 4 3 -> 0 1 0 -1
 ground :: V.Vector Double -> V.Vector Double
 ground v = V.map (subtract avg) v
@@ -84,6 +111,7 @@ main = do
   let fft = plan dftR2C size
 
   let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
-  let fftConduit = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (buffer size)
+  -- let fftConduit = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (buffer size)
+  let fftConduit = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
 
   sensorData $= fftConduit $$ printAll
