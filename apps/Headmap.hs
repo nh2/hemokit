@@ -29,7 +29,7 @@ main = do
         setBlack >> drawStr name
 
   emotivStateMvar <- newEmptyMVar
-  forkIO $ do
+  _ <- forkIO $ do
     putMVar emotivStateMvar undefined
     putStrLn "Waiting for EEG data..."
     withDataFromLastEEG Consumer (void . swapMVar emotivStateMvar . fst)
@@ -94,7 +94,7 @@ run width height renderAct = do
   win <- windowNew
   vbox <- vBoxNew False 0
   closeButton <- buttonNewWithLabel "Close"
-  onClicked closeButton (widgetDestroy win)
+  _ <- onClicked closeButton (widgetDestroy win)
   canvas <- drawingAreaNew
   _ <- canvas `onSizeRequest` return (Requisition width height)
   _ <- canvas `on` exposeEvent $ tryEvent $ updateCanvas canvas (renderAct win)
@@ -105,7 +105,7 @@ run width height renderAct = do
 
   widgetShow canvas
   widgetShowAll win
-  onDestroy win mainQuit
+  _ <- onDestroy win mainQuit
   -- flush
   mainGUI
   -- Flush all commands that are waiting to be sent to the graphics server.
