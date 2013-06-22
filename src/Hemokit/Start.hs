@@ -13,6 +13,7 @@ module Hemokit.Start
 
 import           Data.List
 import           Options.Applicative
+import           System.IO (stdin)
 
 import           Hemokit hiding (serial)
 
@@ -60,7 +61,8 @@ getEmotivDeviceFromArgs :: EmotivArgs -> IO (Either String EmotivDevice)
 getEmotivDeviceFromArgs EmotivArgs{ model, serial, fromFile } = case fromFile of
 
     -- File given, use device file / file handle
-    Just f | Just s <- serial -> Right <$> openEmotivDeviceFile model s f
+    Just f | Just s <- serial -> Right <$> if f == "-" then openEmotivDeviceHandle model s stdin
+                                                       else openEmotivDeviceFile   model s f
            | otherwise        -> fail "A serial number must be provided when using --from-file"
 
     -- No file given, use HIDAPI to select the device

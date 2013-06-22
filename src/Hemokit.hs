@@ -19,6 +19,7 @@ module Hemokit
   , getEmotivDevices
   , openEmotivDevice
   , openEmotivDeviceFile
+  , openEmotivDeviceHandle
   , readEmotiv
   , EmotivException (..)
   , SerialNumber ()
@@ -406,6 +407,12 @@ openEmotivDevice model EmotivDeviceInfo{ hidapiDeviceInfo } = case hidapiDeviceI
 openEmotivDeviceFile :: EmotivModel -> SerialNumber -> String -> IO EmotivDevice
 openEmotivDeviceFile model sn path = do
   h <- openFile path ReadMode
+  openEmotivDeviceHandle model sn h
+
+
+-- | Creates an `EmotivDevice` device from an open file handle.
+openEmotivDeviceHandle :: EmotivModel -> SerialNumber -> Handle -> IO EmotivDevice
+openEmotivDeviceHandle model sn h = do
   stateRef <- newIORef Nothing
   return $ EmotivDevice
     { rawDevice   = HandleDevice h
