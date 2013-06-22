@@ -1,7 +1,7 @@
 hemokit
 =======
 
-Haskell library and tool suite for the Emotiv Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
+Haskell library and tool suite for the [Emotiv](http://emotiv.com) Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
 
 Get it via [`cabal install hemokit`](http://hackage.haskell.org/package/hemokit).
 
