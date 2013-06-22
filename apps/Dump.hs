@@ -9,6 +9,7 @@ import           Data.Aeson (ToJSON (..), encode)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
+import           Data.IORef
 import           Data.List
 import           Data.List.Split (splitOn)
 import           Data.Time.Clock
@@ -33,8 +34,9 @@ data DumpArgs = DumpArgs
   , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
   }
 
--- | Whether to dump raw data, hardware-sent packages or cumulative states.
-data DumpMode = Raw | Packets | State deriving (Eq, Show)
+-- | Whether to dump raw data, hardware-sent packages, cumulative states,
+-- or measurements of device-computer latency.
+data DumpMode = Raw | Packets | State | Measure deriving (Eq, Show)
 
 
 -- | Parser for `DumpArgs`.
@@ -44,7 +46,7 @@ dumpArgsParser = DumpArgs
   <*> nullOption
       ( long "mode"
         <> reader parseDumpMode <> value State
-        <> help "What to dump. Can be 'raw', 'packets', or 'state'" )
+        <> help "What to dump. Can be 'raw', 'packets', 'state' or 'measure'" )
   <*> switch
       ( long "realtime"
         <> help "In case --from-file is used, throttle data to 128 Hz like on real device" )
@@ -70,6 +72,7 @@ parseDumpMode s = case s of
   "raw"     -> return Raw
   "packets" -> return Packets
   "state"   -> return State
+  "measure" -> return Measure
   _         -> fail "Mode is not valid. Must be 'raw', 'packets', or 'state'."
 
 
@@ -114,6 +117,10 @@ main = do
             Nothing           -> return (putStrLn . if json then BSL8.unpack . encode else show)
             Just (host, port) -> makeJsonOrShowWSServer host port json
 
+          -- For --mode measure: See how long a 0-128 cycle takes
+          timeRef <- newIORef =<< getCurrentTime
+          countRef <- newIORef (0 :: Int)
+
           -- Packet loop
           forever $ do
 
@@ -130,6 +137,18 @@ main = do
               Raw     -> do rawBytes <- readEmotivRaw device
                             if json then output (JsonShowable rawBytes)
                                     else BS8.putStr (emotivRawDataBytes rawBytes)
+
+              Measure -> do _ <- readEmotivRaw device
+                            -- When a full cycle is done, print how long it took.
+                            count <- readIORef countRef
+                            modifyIORef' countRef (+1)
+                            when (count == 128) $ do
+                              cycleTime <- diffUTCTime <$> getCurrentTime <*> readIORef timeRef
+                              output . JsonShowable $ toDoule cycleTime
+                              writeIORef countRef 0
+                              writeIORef timeRef =<< getCurrentTime
+                            where
+                              toDoule x = fromRational (toRational x) :: Double
 
             hFlush stdout
 
