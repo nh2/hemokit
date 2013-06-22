@@ -158,3 +158,19 @@ benchmark bench
     , hemokit
     , criterion              >= 0.8.0.0
   ghc-options: -Wall
+
+
+benchmark bench-rollingbuffer
+  default-language: Haskell2010
+  type: exitcode-stdio-1.0
+  hs-source-dirs:
+    bench
+  main-is:
+    ConduitRollingBufferBench.hs
+  build-depends:
+      base
+    , conduit
+    , mtl
+    , hemokit
+    , criterion              >= 0.8.0.0
+  ghc-options: -Wall
