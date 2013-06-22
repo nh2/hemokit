@@ -1,7 +1,9 @@
 hemokit
 =======
 
-Haskell library for the Emotiv Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
+Haskell library and tool suite for the Emotiv Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
+
+Get it via [`cabal install hemokit`](http://hackage.haskell.org/package/hemokit).
 
 Hemokit currently only works on Linux (patches welcome).
 
@@ -19,7 +21,55 @@ Programs
 
 Hemokit comes with example programs to
 
-* print out the current EEG data
-* move the cursor with the gyro
+* `hemokit-dump` print out the current EEG data
+* `hemokit-mouse` move the cursor using the gyro
 
-You must run them as root.
+Note that we have to use `sudo` in most of the cases because the HIDAP-hidraw implementation reads directly from a device file.
+
+
+hemokit-dump - Examples
+-----------------------
+
+*hemokit-dump* can print EEG data, format it as JSON, serve it via Websockets, and read from real devices and dump files.
+
+
+* Output EEG *cumulative state* for an automatically found device:
+
+  ```bash
+  sudo hemokit-dump
+  ```
+
+* Select one of many connected EEGs by serial number:
+
+  ```bash
+  sudo hemokit-dump --serial SN...GM
+  ```
+
+* Output only the data the device sends (no cumulative state), and format the output as JSON:
+
+  ```bash
+  sudo hemokit-dump --mode packets --json
+  ```
+
+* Instead of from a real device, read data recorded to a file, and serve it via JSON over a Websockets server on port `1234`:
+
+  ```bash
+  sudo cat /dev/hidraw1 > encrypted.dump  # Dump data to a file
+  sudo hemokit-dump --from-file encrypted.dump --serial SN...GM --serve 0.0.0.0:1234 --json
+  ```
+
+  Here you **have** to specify the serial since HIDAPI is not used to obtain it automatically.
+
+* Output decrypted raw data to stdout:
+
+  ```bash
+  sudo hemokit-dump --mode raw
+  ```
+
+* Both print the data from the EEG **and** store the original data for later use:
+
+  ```bash
+  sudo cat /dev/hidraw1 | tee >(hemokit-dump --from-file - --serial SN...GM --json) > encrypted.dump
+  ```
+
+  We use `tee` and shell process substitution to duplicate the data stream, and tell *hemokit-dump* to read from `-` (stdin).
