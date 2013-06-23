@@ -6,7 +6,7 @@ module Main where
 import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Data.Aeson (ToJSON (..), encode)
-import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
 import           Data.Function (fix)
@@ -115,7 +115,8 @@ main = do
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           output <- case serve of
-            Nothing           -> return (putStrLn . if json then BSL8.unpack . encode else show)
+            -- TODO use Data.ByteString.Lazy.UTF8.fromString instead of BSL8 to prevent unicode errors
+            Nothing           -> return (BSL8.putStrLn . if json then encode else BSL8.pack . show)
             Just (host, port) -> makeJsonOrShowWSServer host port json
 
           -- For --mode measure: See how long a 0-128 cycle takes
@@ -138,7 +139,7 @@ main = do
 
               Raw     -> readEmotivRaw device `withJustM` \rawBytes ->
                            if json then output (JsonShowable rawBytes)
-                                   else BS8.putStr (emotivRawDataBytes rawBytes)
+                                   else BS.putStr (emotivRawDataBytes rawBytes)
 
               Measure -> readEmotivRaw device `withJustM` \_ -> do
                            -- When a full cycle is done, print how long it took.
