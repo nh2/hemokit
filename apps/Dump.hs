@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, TemplateHaskell #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
