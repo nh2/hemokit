@@ -21,7 +21,7 @@ import           Text.Show.Pretty
 import           Hemokit
 import           Hemokit.Start
 
-import           Utils (withJustM)
+import           Hemokit.Internal.Utils (withJustM)
 import           WebsocketUtils (makeJsonOrShowWSServer, JsonShowable (..))
 
 

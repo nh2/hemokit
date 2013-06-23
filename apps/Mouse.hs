@@ -11,7 +11,7 @@ import           Text.Show.Pretty (ppShow)
 
 import           Hemokit
 
-import           Utils (untilNothing)
+import           Hemokit.Internal.Utils (untilNothing)
 
 
 main :: IO ()

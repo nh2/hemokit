@@ -1,4 +1,4 @@
-module Utils
+module Hemokit.Internal.Utils
   ( withJustM
   , untilNothing
   ) where

@@ -6,6 +6,7 @@ import           Data.Complex
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.List
+import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Numeric.FFT.Vector.Unnormalized
 import           System.Environment
@@ -14,7 +15,13 @@ import           Text.Printf
 
 import           Hemokit
 
-import           Utils (untilNothing)
+import           Hemokit.Internal.Utils (untilNothing)
+
+
+rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [Vector Double] m ()
+rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
+  where
+    fft = plan dftR2C size
 
 
 packets :: EmotivDevice -> Source IO EmotivState
@@ -108,11 +115,6 @@ main = do
     [] -> error "No devices found."
     _  -> openEmotivDevice model (last devices)
 
-  let size = 256
-  let fft = plan dftR2C size
-
   let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
-  -- let fftConduit = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (buffer size)
-  let fftConduit = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
 
-  sensorData $= fftConduit $$ printAll
+  sensorData $= rollingFFTConduit 256 $$ printAll
