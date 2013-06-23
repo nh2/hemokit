@@ -38,7 +38,6 @@ jsonConduit = awaitForever (return . encode)
 
 -- * Websockets
 
--- TODO make this so that it can be both a conduit and a sink
 websocketSink :: (MonadIO m, ToJSON a) => String -> Int -> Sink a m ()
 websocketSink host port = do
   chan <- liftIO $ newChan
