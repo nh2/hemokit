@@ -162,7 +162,6 @@ main = do
       -- device's frequency). But take into the account the time that
       -- we have spent reading from the device.
 
-      -- when realtime $ do
       fix $ \loop -> do
         timeBefore <- liftIO getCurrentTime
         m'x <- await
