@@ -114,7 +114,6 @@ main = do
         Right device -> do
 
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
-          -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           let outputSink :: (ToJSON i, Show i) => Sink i IO ()
               outputSink = case serve of
                 Nothing           | json      -> asJson $ CL.mapM_ BSL8.putStrLn
@@ -157,32 +156,23 @@ main = do
       awaitForever (const yieldCyleTimes)
 
 
-      -- When realtime is on, throttle the reading to 1/129 (a real
-      -- device's frequency). But take into the account the time that
-      -- we have spent reading from the device.
-    throttle :: (MonadIO m) => Conduit i m i
-    throttle = fix $ \loop -> do
+-- When realtime is on, throttle the reading to 1/129 (a real
+-- device's frequency). But take into the account the time that
+-- we have spent reading from the device.
+throttle :: (MonadIO m) => Conduit i m i
+throttle = fix $ \loop -> do
 
-      timeBefore <- liftIO getCurrentTime
-      m'x <- await
+  timeBefore <- liftIO getCurrentTime
+  m'x <- await
 
-      case m'x of
-        Nothing -> return ()
-        Just x -> do
-          timeTaken <- liftIO $ (`diffUTCTime` timeBefore) <$> getCurrentTime
-          let delayUs = 1000000 `div` 129 - round (timeTaken * 1000000)
-          when (delayUs > 0) $ liftIO $ threadDelay delayUs
-          yield x
-          loop
-
-
--- * Things that can be shown and JSONed
-
--- | Something that can be shown and formatted as JSON.
-data JsonShowable = forall a . (Show a, ToJSON a) => JsonShowable a
-
-instance Show JsonShowable   where show (JsonShowable x) = show x
-instance ToJSON JsonShowable where toJSON (JsonShowable x) = toJSON x
+  case m'x of
+    Nothing -> return ()
+    Just x -> do
+      timeTaken <- liftIO $ (`diffUTCTime` timeBefore) <$> getCurrentTime
+      let delayUs = 1000000 `div` 129 - round (timeTaken * 1000000)
+      when (delayUs > 0) $ liftIO $ threadDelay delayUs
+      yield x
+      loop
 
 
 -- * JSON instances
