@@ -6,8 +6,9 @@ module Main where
 import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Aeson (ToJSON (..))
+import           Data.Aeson (ToJSON (..), encode)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
@@ -116,12 +117,12 @@ main = do
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           let outputSink :: (ToJSON i, Show i) => Sink i IO ()
               outputSink = case serve of
-                Nothing           | json      -> asJson $ CL.mapM_ print
+                Nothing           | json      -> asJson $ CL.mapM_ BSL8.putStrLn
                                   | otherwise ->          CL.mapM_ print
                 Just (host, port) | json      -> asJson $ websocketSink host port
                                   | otherwise ->          websocketSink host port
                 where
-                  asJson = mapInput JsonShowable (const Nothing)
+                  asJson = mapInput encode (const Nothing)
 
               throttled = if realtime then ($= throttle) else id
 
@@ -156,24 +157,23 @@ main = do
       awaitForever (const yieldCyleTimes)
 
 
-    throttle :: (MonadIO m) => Conduit i m i
-    throttle = do
       -- When realtime is on, throttle the reading to 1/129 (a real
       -- device's frequency). But take into the account the time that
       -- we have spent reading from the device.
+    throttle :: (MonadIO m) => Conduit i m i
+    throttle = fix $ \loop -> do
 
-      fix $ \loop -> do
-        timeBefore <- liftIO getCurrentTime
-        m'x <- await
+      timeBefore <- liftIO getCurrentTime
+      m'x <- await
 
-        case m'x of
-          Nothing -> return ()
-          Just x -> do
-            timeTaken <- liftIO $ (`diffUTCTime` timeBefore) <$> getCurrentTime
-            let delayUs = 1000000 `div` 129 - round (timeTaken * 1000000)
-            when (delayUs > 0) $ liftIO $ threadDelay delayUs
-            yield x
-            loop
+      case m'x of
+        Nothing -> return ()
+        Just x -> do
+          timeTaken <- liftIO $ (`diffUTCTime` timeBefore) <$> getCurrentTime
+          let delayUs = 1000000 `div` 129 - round (timeTaken * 1000000)
+          when (delayUs > 0) $ liftIO $ threadDelay delayUs
+          yield x
+          loop
 
 
 -- * Things that can be shown and JSONed
