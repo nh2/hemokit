@@ -5,7 +5,7 @@ import           Control.Concurrent.Chan
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Aeson (ToJSON (..), encode)
-import           Data.ByteString (ByteString)
+import           Data.ByteString.Lazy (ByteString)
 import           Data.Conduit
 import qualified Network.WebSockets as WS
 
@@ -18,7 +18,7 @@ rawSource :: (MonadIO m) => EmotivDevice -> Source m EmotivRawData
 rawSource dev = void $ untilNothing (liftIO (readEmotivRaw dev)) yield
 
 parsePackets :: (MonadIO m) => EmotivDevice -> Conduit EmotivRawData m (EmotivState, EmotivPacket)
-parsePackets dev = awaitForever (liftIO . updateEmotivState dev)
+parsePackets dev = awaitForever (\raw -> liftIO (updateEmotivState dev raw) >>= yield)
 
 
 -- * Convenience
@@ -32,8 +32,9 @@ emotivPackets dev = rawSource dev $= mapOutput snd (parsePackets dev)
 
 -- * JSON
 
+-- TODO check if we really need this since it doesn't do any monadic thing
 jsonConduit :: (Monad m, ToJSON i) => Conduit i m ByteString
-jsonConduit = awaitForever (return . encode)
+jsonConduit = awaitForever (yield . encode)
 
 
 -- * Websockets
