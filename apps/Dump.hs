@@ -98,8 +98,7 @@ main = do
           , listDevices
           , json
           , serve
-          } <- execParser $ info (helper <*> dumpArgsParser)
-                                 (progDesc "Dumps Emotiv data")
+          } <- parseArgs "Dumps Emotiv data" dumpArgsParser
 
   if listDevices -- Only list devices
     then getEmotivDevices >>= putStrLn . ("Available devices:\n" ++) . ppShow
