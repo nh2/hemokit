@@ -9,11 +9,11 @@ import           Data.List
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Numeric.FFT.Vector.Unnormalized
-import           System.Environment
 import           System.IO
 import           Text.Printf
 
 import           Hemokit
+import           Hemokit.Start
 
 import           Hemokit.Internal.Utils (untilNothing)
 
@@ -107,14 +107,12 @@ ground v = V.map (subtract avg) v
 
 main :: IO ()
 main = do
-  args <- getArgs
-  let model = if "--developer" `elem` args then Developer else Consumer
+  m'device <- getEmotivDeviceFromArgs =<< parseArgs "FFT on Emotiv data" emotivArgsParser
 
-  devices <- getEmotivDevices
-  device <- case devices of
-    [] -> error "No devices found."
-    _  -> openEmotivDevice model (last devices)
+  case m'device of
+    Left err -> error err
+    Right device -> do
 
-  let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
+      let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
 
-  sensorData $= rollingFFTConduit 256 $$ printAll
+      sensorData $= rollingFFTConduit 256 $$ printAll
