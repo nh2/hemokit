@@ -8,6 +8,7 @@ module Hemokit.Start
   ( EmotivArgs (..)
   , emotivArgsParser
   , parseModel
+  , parseArgs
   , getEmotivDeviceFromArgs
   ) where
 
@@ -53,6 +54,13 @@ emotivArgsParser = EmotivArgs
         <> help "The file path to read from (e.g. /dev/hidraw0 or myfile.dump)" )
   where
     maybeReader mbFn msg = reader $ maybe (fail msg) pure . mbFn
+
+
+-- | Runs a command line parser. The given program description is used for the
+-- --help message.
+parseArgs :: String -> Parser a -> IO a
+parseArgs programDescription parser = execParser $ info (helper <*> parser)
+                                                        (progDesc programDescription)
 
 
 -- | Depending on some common EEG-choice-related user input, list devices or
