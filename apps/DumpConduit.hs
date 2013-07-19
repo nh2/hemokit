@@ -18,6 +18,7 @@ import           Data.List
 import           Data.List.Split (splitOn)
 import           Data.Time.Clock
 import           Options.Applicative hiding (action)
+import           System.IO
 import           Text.Read
 import           Text.Show.Pretty
 
@@ -131,10 +132,12 @@ main = do
             State   -> throttled (emotivStates  device) $$ outputSink
 
             Raw     -> throttled (rawSource     device) $$ if json then outputSink
-                                                                   else CL.mapM_ (BS.putStr . emotivRawDataBytes)
+                                                                   else CL.mapM_ (putStrBsFlush . emotivRawDataBytes)
             Measure -> throttled (rawSource     device) $= measureConduit $$ outputSink
 
   where
+    putStrBsFlush bs = BS.putStr bs >> hFlush stdout
+
     measureConduit = do
       -- For --mode measure: See how long a 0-128 cycle takes
       timeRef  <- liftIO $ newIORef =<< getCurrentTime

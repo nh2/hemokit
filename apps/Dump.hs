@@ -15,6 +15,7 @@ import           Data.List
 import           Data.List.Split (splitOn)
 import           Data.Time.Clock
 import           Options.Applicative hiding (action)
+import           System.IO
 import           Text.Read
 import           Text.Show.Pretty
 
@@ -136,9 +137,10 @@ main = do
               State   -> readEmotiv device `withJustM` \(state, _) ->
                            output (JsonShowable state)
 
-              Raw     -> readEmotivRaw device `withJustM` \rawBytes ->
+              Raw     -> readEmotivRaw device `withJustM` \rawBytes -> do
                            if json then output (JsonShowable rawBytes)
                                    else BS.putStr (emotivRawDataBytes rawBytes)
+                           hFlush stdout -- flush so that consuming apps immediately get it
 
               Measure -> readEmotivRaw device `withJustM` \_ -> do
                            -- When a full cycle is done, print how long it took.
