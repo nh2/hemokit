@@ -15,7 +15,7 @@ import HLearn.Models.Distributions
 
 
 -- TODO generalize Double
-
+-- TODO Enum requirement, then use IntMap?
 
 type FeatureIndex = Int
 
