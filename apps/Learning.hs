@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Learning where
 
@@ -7,6 +8,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Function (on)
 import Data.List
+import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -20,7 +22,7 @@ import HLearn.Models.Distributions
 type FeatureIndex = Int
 
 data BayesClassifier label = BayesClassifier -- label must be Ord,
-  { distsByLabelAndFeature :: [(label, [Normal Double])]
+  { distsByLabelAndFeature :: [(label, Int, [Normal Double])]
     -- ^ invariants:
     -- * nonempty
     -- * ordered by label
@@ -51,7 +53,7 @@ trainBayes cases = do -- Either monad
   check cases
 
   dists <- forM usedLabels $ \label ->
-             (label, ) <$> mapM ( distFor . (label, ) ) [0 .. len-1]
+             (label, counts label, ) <$> mapM ( distFor . (label, ) ) [0 .. len-1]
 
   return $ BayesClassifier dists len
   where
@@ -71,6 +73,13 @@ trainBayes cases = do -- Either monad
         | variance dist == 0.0 -> Left $ "variance undefined (only one feature value?) for (label x feature): " ++ show lf
         | otherwise            -> Right dist
 
+    countsMap :: Map r Int
+    countsMap = Map.fromListWith (\ !n !o -> n + o) [ (label, 1) | (_, label) <- cases ]
+
+    counts :: r -> Int
+    counts l = fromMaybe (error $ "trainBayes BUG: Missing label count for " ++ show l)
+                         (Map.lookup l countsMap)
+
 
 probabilitiesBayes' :: (Ord r) => BayesClassifier r -> [Double] -> [(r, Double)]
 probabilitiesBayes' c features = either error id $ probabilitiesBayes c features
@@ -81,10 +90,14 @@ probabilitiesBayes' c features = either error id $ probabilitiesBayes c features
 probabilitiesBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 probabilitiesBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
-  | otherwise              = Right [ (label, product -- naive Bayes: simply multiply probabilities
-                                               [ pdf d val | (val, d) <- zip features featureDists ]
-                                     )
-                                   | (label, featureDists) <- dists ]
+  | otherwise              = Right
+      [ (label, sum . map log $ -- naive Bayes: simply multiply probabilities (== sum the logs to not exceed FP arithmetic)
+                  (labelCount ./. nSamples):[ pdf d val | (val, d) <- zip features featureDists ]
+        )
+      | (label, labelCount, featureDists) <- dists ]
+  where
+    nSamples = sum (map (\(_, c, _) -> c) dists)
+    a ./. b = fromIntegral a / fromIntegral b
 
 
 
