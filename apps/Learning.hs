@@ -74,5 +74,7 @@ classifyBayes' classifier features = either error id $ classifyBayes classifier 
 classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 classifyBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
-  | otherwise              = Right [ (label, pdf d val) | (label, featureDists) <- dists
-                                                        , (val, d) <- zip features featureDists ]
+  | otherwise              = Right [ (label, product -- naive Bayes: simply multiply probabilities
+                                               [ pdf d val | (val, d) <- zip features featureDists ]
+                                     )
+                                   | (label, featureDists) <- dists ]
