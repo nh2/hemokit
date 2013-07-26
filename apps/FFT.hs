@@ -1,5 +1,8 @@
+{-# LANGUAGE LambdaCase, DeriveDataTypeable #-}
+
 module Main where
 
+import           Control.Arrow (first)
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Complex
@@ -17,9 +20,15 @@ import           Hemokit.Start
 
 import           Hemokit.Internal.Utils (untilNothing)
 
+import           Data.IORef
+import           Control.Concurrent.Async
 
-rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [Vector Double] m ()
-rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
+import           Learning
+
+
+-- TODO envelope to 0 on the sides?
+rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [[Double]] m ()
+rollingFFTConduit size = mapOutput (map (V.toList . V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
   where
     fft = plan dftR2C size
 
@@ -115,4 +124,52 @@ main = do
 
       let sensorData = mapOutput (V.map fromIntegral . sensors) (packets device)
 
-      sensorData $= rollingFFTConduit 256 $$ printAll
+      -- Note that on startup, nothing will happen for some time.
+      -- This is when we buffer up packets for the first FFT.
+      putStrLn "Waiting for FFT to fill..."
+
+      -- sensorData $= rollingFFTConduit 256 $$ printAll
+      -- sensorData $= rollingFFTConduit 64 $$ printAll
+
+      -- trainingData <- sensorData $= rollingFFTConduit 64 $= keyboardSideConduit $$ CL.consume
+      -- mapM_ (\(ffts, side) -> print (head ffts, side)) trainingData
+
+      sensorData $$ rollingFFTConduit 64 =$ do
+        trainingData <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
+
+        liftIO . print . length . concat . fst . head $ trainingData
+
+        let classifier = trainFFT $ map (first concat) trainingData
+
+        liftIO $ putStrLn "Classifying..."
+
+        CL.mapM_ (print . probabilitiesFFT classifier . concat)
+
+
+data Side = L | R | None deriving (Enum, Eq, Ord, Show, Read)
+
+
+keyboardSideConduit :: (MonadIO m) => Conduit i m (i, Side)
+keyboardSideConduit = do
+  liftIO $ hSetBuffering stdin NoBuffering -- immediate getChar reads
+
+  sideRef <- liftIO $ newIORef None
+
+  keyboardThread <- liftIO . async $ forever $ getChar >>= \case
+      '1' -> putStrLn "\nRecording as LEFT"  >> writeIORef sideRef L
+      '2' -> putStrLn "\nRecording as NONE"  >> writeIORef sideRef None
+      '3' -> putStrLn "\nRecording as RIGHT" >> writeIORef sideRef R
+      _   -> return ()
+
+  awaitForever $ \i -> do
+    side <- liftIO $ readIORef sideRef
+    liftIO $ print side
+    yield (i, side)
+
+  liftIO $ cancel keyboardThread
+
+
+newtype SideExample = SideExample ([V.Vector Double], Side)
+                    deriving (Eq, Ord, Read, Show)
+
+
