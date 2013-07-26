@@ -128,12 +128,6 @@ main = do
       -- This is when we buffer up packets for the first FFT.
       putStrLn "Waiting for FFT to fill..."
 
-      -- sensorData $= rollingFFTConduit 256 $$ printAll
-      -- sensorData $= rollingFFTConduit 64 $$ printAll
-
-      -- trainingData <- sensorData $= rollingFFTConduit 64 $= keyboardSideConduit $$ CL.consume
-      -- mapM_ (\(ffts, side) -> print (head ffts, side)) trainingData
-
       sensorData $$ rollingFFTConduit 64 =$ do
         -- Get first few values as training data
         taggedSensorVals <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
