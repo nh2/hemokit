@@ -66,7 +66,7 @@ trainBayes cases = do -- Either monad
                                                        , (fi, val) <- zip [0..] features ]
 
     distFor lf = case Map.lookup lf m of
-      Nothing                   -> Left $ "trainBayes: Missing (label x feature): " ++ show lf
+      Nothing                  -> error $ "trainBayes BUG: Missing (label x feature): " ++ show lf
       Just dist
         | variance dist == 0.0 -> Left $ "variance undefined (only one feature value?) for (label x feature): " ++ show lf
         | otherwise            -> Right dist
