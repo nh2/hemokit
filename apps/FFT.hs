@@ -2,7 +2,7 @@
 
 module Main where
 
-import           Control.Arrow (first)
+import           Control.Arrow (second)
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Complex
@@ -135,21 +135,41 @@ main = do
       -- mapM_ (\(ffts, side) -> print (head ffts, side)) trainingData
 
       sensorData $$ rollingFFTConduit 64 =$ do
-        trainingData <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
+        -- Get first few values as training data
+        taggedSensorVals <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
 
-        liftIO . print . length . concat . fst . head $ trainingData
+        let trainingData :: [(Side, [Double])]
+            trainingData = map (second sensorValsToFeatures) taggedSensorVals
 
-        let classifier = trainBayes' $ map (first concat) trainingData
+            -- Clean input data (remove feature if all equal for any label)
+            clean             = makeBadFeatureFilter trainingData
+            cleanTrainingData = map (second clean) trainingData
+
+            -- Train classifier
+            classifier       = trainBayes' cleanTrainingData
+            cleanAndClassify = probabilitiesBayes' classifier . clean
+
+        -- Print how many features were used
+        printFeaturesUsed trainingData cleanTrainingData
 
         liftIO $ putStrLn "Classifying..."
 
-        CL.mapM_ (print . classifyBayes' classifier . concat)
+        -- Classify remaining data
+        CL.mapM_ (print . cleanAndClassify . sensorValsToFeatures)
+  where
+    sensorValsToFeatures = concat
+
+    printFeaturesUsed trainingData cleanTrainingData = liftIO $ do
+      let nFeatures      = length . snd . head $ trainingData
+          nCleanFeatures = length . snd . head $ cleanTrainingData
+      putStrLn . unlines $ [ "Features: " ++ show nFeatures
+                           , "Clean features: " ++ show nCleanFeatures ]
 
 
 data Side = L | R | None deriving (Enum, Eq, Ord, Show, Read)
 
 
-keyboardSideConduit :: (MonadIO m) => Conduit i m (i, Side)
+keyboardSideConduit :: (MonadIO m) => Conduit i m (Side, i)
 keyboardSideConduit = do
   liftIO $ hSetBuffering stdin NoBuffering -- immediate getChar reads
 
@@ -164,7 +184,7 @@ keyboardSideConduit = do
   awaitForever $ \i -> do
     side <- liftIO $ readIORef sideRef
     liftIO $ print side
-    yield (i, side)
+    yield (side, i)
 
   liftIO $ cancel keyboardThread
 

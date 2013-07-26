@@ -32,24 +32,24 @@ data BayesClassifier label = BayesClassifier -- label must be Ord,
   } deriving (Eq, Show)
 
 
-check :: [([a], b)] -> Either String ()
+check :: [(r, [a])] -> Either String ()
 check cases
   | null cases                   = Left "trainBayes: cannot train on empty cases list"
   | any hasDifferentLength cases = Left "trainBayes: feature vectors do not have same size"
   | otherwise                    = return ()
   where
-    len                       = length $ fst (head cases)
-    hasDifferentLength (l, _) = length l /= len
+    len                       = length $ snd (head cases)
+    hasDifferentLength (_, l) = length l /= len
 
 
-trainBayes' :: forall r . (Ord r, Show r) => [([Double], r)] -> BayesClassifier r
+trainBayes' :: forall r . (Ord r, Show r) => [(r, [Double])] -> BayesClassifier r
 trainBayes' = either error id . trainBayes
 
 
 -- TODO error types instead of String
 --      - in case of variance undefined, also offer the value that all things had
 
-trainBayes :: forall r . (Ord r, Show r) => [([Double], r)] -> Either String (BayesClassifier r)
+trainBayes :: forall r . (Ord r, Show r) => [(r, [Double])] -> Either String (BayesClassifier r)
 trainBayes cases = do -- Either monad
 
   check cases
@@ -59,14 +59,14 @@ trainBayes cases = do -- Either monad
 
   return $ BayesClassifier dists len
   where
-    usedLabels = Set.toList . Set.fromList $ map snd cases -- ordered
-    len        = length $ fst (head cases)
+    usedLabels = Set.toAscList . Set.fromList $ map fst cases -- ordered
+    len        = length $ snd (head cases)
 
     m = train <$> inputsByLabelAndFeature :: Map (r, FeatureIndex) (Normal Double)
 
     inputsByLabelAndFeature :: Map (r, FeatureIndex) [Double] -- [Double] guaranteed to be non-empty
     inputsByLabelAndFeature = Map.fromListWith (++)
-                                [ ((label, fi), [val]) | (features, label) <- cases
+                                [ ((label, fi), [val]) | (label, features) <- cases
                                                        , (fi, val) <- zip [0..] features ]
 
     distFor lf = case Map.lookup lf m of
@@ -76,7 +76,7 @@ trainBayes cases = do -- Either monad
         | otherwise            -> Right dist
 
     countsMap :: Map r Int
-    countsMap = Map.fromListWith (\ !n !o -> n + o) [ (label, 1) | (_, label) <- cases ]
+    countsMap = Map.fromListWith (\ !n !o -> n + o) [ (label, 1) | (label, _) <- cases ]
 
     counts :: r -> Int
     counts l = fromMaybe (error $ "trainBayes BUG: Missing label count for " ++ show l)
@@ -119,3 +119,36 @@ classifyBayes' c features = either error id $ classifyBayes c features
 
 classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String r
 classifyBayes c features = fst . maximumBy (compare `on` snd) <$> probabilitiesBayes c features
+
+
+-- * Input helpers
+
+
+-- | Some features (buckets in the FFT) might always have the same values (be "bad").
+--
+-- We have to ignore these buckets for training (and later classification)
+-- because they would have 0 variance (not allowed for normal distribution).
+--
+-- This function returns a function that drops bad features from a feature vector.
+--
+-- (This has to be done *per* label: a feature is bad already if it has all
+-- the same values for *some* label.)
+makeBadFeatureFilter :: (Ord r, Eq a) => [(r, [a])] -> ([a] -> [a])
+makeBadFeatureFilter trainingData = \features ->
+  if length features /= length featureMask
+    then error $ "makeBadFeatureFilter CALLER ERROR: different (length features, length featureMask): "
+                 ++ show (length features, length featureMask)
+    else [ f | (f, True) <- zip features featureMask ]
+  where
+    featuresPerLabel = map snd $ partitionOnKey trainingData
+    -- TODO length check for transpose
+    featureMaskPerLabel = map (map notAllEquals . transpose) featuresPerLabel
+    featureMask = foldl' (zipWith (&&)) (repeat True) featureMaskPerLabel -- AND all masks
+
+
+notAllEquals :: (Eq a) => [a] -> Bool
+notAllEquals l = case group l of _:_:_ -> True -- at least 2 groups
+                                 _     -> False
+
+partitionOnKey :: (Ord k) => [(k, a)] -> [(k, [a])]
+partitionOnKey l = Map.toAscList $ Map.fromListWith (++) [ (k, [v]) | (k, v) <- l ]
