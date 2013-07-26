@@ -47,6 +47,7 @@ trainBayes' = either error id . trainBayes
 
 
 -- TODO error types instead of String
+--      - in case of variance undefined, also offer the value that all things had
 
 trainBayes :: forall r . (Ord r, Show r) => [([Double], r)] -> Either String (BayesClassifier r)
 trainBayes cases = do -- Either monad
