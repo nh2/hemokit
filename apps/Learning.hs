@@ -14,7 +14,7 @@ import HLearn.Models.Distributions
 
 type FeatureIndex = Int
 
-data BayesClassifier label = BayesClassifier -- label must be Ord, Enum
+data BayesClassifier label = BayesClassifier -- label must be Ord,
   { distsByLabelAndFeature :: [(label, [Normal Double])]
     -- ^ invariants:
     -- * nonempty
@@ -34,13 +34,13 @@ check cases
     hasDifferentLength (l, _) = length l /= len
 
 
-trainBayes' :: forall r . (Ord r, Enum r, Show r) => [([Double], r)] -> BayesClassifier r
+trainBayes' :: forall r . (Ord r, Show r) => [([Double], r)] -> BayesClassifier r
 trainBayes' = either error id . trainBayes
 
 
 -- TODO error types instead of String
 
-trainBayes :: forall r . (Ord r, Enum r, Show r) => [([Double], r)] -> Either String (BayesClassifier r)
+trainBayes :: forall r . (Ord r, Show r) => [([Double], r)] -> Either String (BayesClassifier r)
 trainBayes cases = do -- Either monad
 
   check cases
@@ -67,11 +67,11 @@ trainBayes cases = do -- Either monad
         | otherwise            -> Right dist
 
 
-classifyBayes' :: (Ord r, Enum r) => BayesClassifier r -> [Double] -> [(r, Double)]
+classifyBayes' :: (Ord r) => BayesClassifier r -> [Double] -> [(r, Double)]
 classifyBayes' classifier features = either error id $ classifyBayes classifier features
 
 
-classifyBayes :: (Ord r, Enum r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
+classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 classifyBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
   | otherwise              = Right [ (label, pdf d val) | (label, featureDists) <- dists
