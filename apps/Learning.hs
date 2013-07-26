@@ -5,11 +5,16 @@ module Learning where
 
 import Control.Applicative
 import Control.Monad
+import Data.Function (on)
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import HLearn.Algebra hiding (Map) -- TODO report
 import HLearn.Models.Distributions
+
+
+-- TODO generalize Double
 
 
 type FeatureIndex = Int
@@ -67,16 +72,25 @@ trainBayes cases = do -- Either monad
         | otherwise            -> Right dist
 
 
-classifyBayes' :: (Ord r) => BayesClassifier r -> [Double] -> [(r, Double)]
-classifyBayes' classifier features = either error id $ classifyBayes classifier features
+probabilitiesBayes' :: (Ord r) => BayesClassifier r -> [Double] -> [(r, Double)]
+probabilitiesBayes' c features = either error id $ probabilitiesBayes c features
 
 
 -- TODO check why my output here is different from HLearn
 --      (only by a different relative scale thoug). Does it normalize?
-classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
-classifyBayes (BayesClassifier dists len) features
+probabilitiesBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
+probabilitiesBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
   | otherwise              = Right [ (label, product -- naive Bayes: simply multiply probabilities
                                                [ pdf d val | (val, d) <- zip features featureDists ]
                                      )
                                    | (label, featureDists) <- dists ]
+
+
+
+classifyBayes' :: (Ord r) => BayesClassifier r -> [Double] -> r
+classifyBayes' c features = either error id $ classifyBayes c features
+
+
+classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String r
+classifyBayes c features = fst . maximumBy (compare `on` snd) <$> probabilitiesBayes c features
