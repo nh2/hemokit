@@ -71,6 +71,8 @@ classifyBayes' :: (Ord r) => BayesClassifier r -> [Double] -> [(r, Double)]
 classifyBayes' classifier features = either error id $ classifyBayes classifier features
 
 
+-- TODO check why my output here is different from HLearn
+--      (only by a different relative scale thoug). Does it normalize?
 classifyBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 classifyBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
