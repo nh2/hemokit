@@ -5,6 +5,7 @@
 module Learning where
 
 import Control.Applicative
+import Control.Arrow (second)
 import Control.Monad
 import Data.Function (on)
 import Data.List
@@ -90,13 +91,23 @@ probabilitiesBayes' c features = either error id $ probabilitiesBayes c features
 probabilitiesBayes :: (Ord r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 probabilitiesBayes (BayesClassifier dists len) features
   | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
-  | otherwise              = Right
-      [ (label, sum . map log $ -- naive Bayes: simply multiply probabilities (== sum the logs to not exceed FP arithmetic)
-                  (labelCount ./. nSamples):[ pdf d val | (val, d) <- zip features featureDists ]
-        )
-      | (label, labelCount, featureDists) <- dists ]
+  | otherwise              = Right $ map (second (/ normalizingConstant)) classProbs -- normalize
+                                     -- TODO comment that this still works even with the log
   where
-    nSamples = sum (map (\(_, c, _) -> c) dists)
+    -- Naive Bayes: simply multiply probabilities (== sum the logs to not exceed FP arithmetic)
+    --              posterior(label) = P(label in nSamples) * p(feature_1 | label)
+    --                                                      * p(feature_2 | label)
+   --                                                       * ...
+    classProbs = [ (label
+                   , sum . map log $
+                       (labelCount ./. nSamples):[ pdf d val | (val, d) <- zip features featureDists ]
+                   )
+                 | (label, labelCount, featureDists) <- dists ]
+
+    -- Dividing by the sum of all class probabilities will make them sum up to 1 again.
+    normalizingConstant = sum (map snd classProbs) -- TODO check sum
+
+    nSamples = sum $ map (\(_, c, _) -> c) dists
     a ./. b = fromIntegral a / fromIntegral b
 
 
