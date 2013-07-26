@@ -1,10 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Learning where
 
 import Control.Applicative
+import Control.Monad
 import Data.Map (Map)
-import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import HLearn.Algebra hiding (Map) -- TODO report
@@ -23,37 +24,55 @@ data BayesClassifier label = BayesClassifier -- label must be Ord, Enum
   } deriving (Eq, Show)
 
 
-check :: [([a], b)] -> ()
+check :: [([a], b)] -> Either String ()
 check cases
-  | null cases                   = error "trainBayes: cannot train on empty cases list"
-  | any hasDifferentLength cases = error "trainBayes: feature vectors do not have same size"
-  | otherwise                    = ()
+  | null cases                   = Left "trainBayes: cannot train on empty cases list"
+  | any hasDifferentLength cases = Left "trainBayes: feature vectors do not have same size"
+  | otherwise                    = return ()
   where
     len                       = length $ fst (head cases)
     hasDifferentLength (l, _) = length l /= len
 
 
-trainBayes :: forall r . (Ord r, Enum r, Show r) => [([Double], r)] -> BayesClassifier r
-trainBayes cases | () <- check cases = BayesClassifier dists len
+trainBayes' :: forall r . (Ord r, Enum r, Show r) => [([Double], r)] -> BayesClassifier r
+trainBayes' = either error id . trainBayes
+
+
+-- TODO error types instead of String
+
+trainBayes :: forall r . (Ord r, Enum r, Show r) => [([Double], r)] -> Either String (BayesClassifier r)
+trainBayes cases = do -- Either monad
+
+  check cases
+
+  dists <- forM usedLabels $ \label ->
+             (label, ) <$> mapM ( distFor . (label, ) ) [0 .. len-1]
+
+  return $ BayesClassifier dists len
   where
     usedLabels = Set.toList . Set.fromList $ map snd cases -- ordered
-
-    dists = [  (label, [ distFor (label, fi) | fi <- [0 .. len-1] ])  | label <- usedLabels ]
+    len        = length $ fst (head cases)
 
     m = train <$> inputsByLabelAndFeature :: Map (r, Int) (Normal Double)
 
-    inputsByLabelAndFeature :: Map (r, Int) [Double]
+    inputsByLabelAndFeature :: Map (r, Int) [Double] -- [Double] guaranteed to be non-empty
     inputsByLabelAndFeature = Map.fromListWith (++)
                                 [ ((label, fi), [val]) | (features, label) <- cases
                                                        , (fi, val) <- zip [0..] features ]
 
-    len = length $ fst (head cases)
-    distFor k = fromMaybe (error $ "trainBayes: Missing (label x feature): " ++ show k)
-                          (Map.lookup k m)
+    distFor lf = case Map.lookup lf m of
+      Nothing                   -> Left $ "trainBayes: Missing (label x feature): " ++ show lf
+      Just dist
+        | variance dist == 0.0 -> Left $ "variance undefined (only one feature value?) for (label x feature): " ++ show lf
+        | otherwise            -> Right dist
 
 
-classifyBayes :: (Ord r, Enum r) => BayesClassifier r -> [Double] -> [(r, Double)]
+classifyBayes' :: (Ord r, Enum r) => BayesClassifier r -> [Double] -> [(r, Double)]
+classifyBayes' classifier features = either error id $ classifyBayes classifier features
+
+
+classifyBayes :: (Ord r, Enum r) => BayesClassifier r -> [Double] -> Either String [(r, Double)]
 classifyBayes (BayesClassifier dists len) features
-  | length features /= len = error "classifyBayes: input feature vector not of same size as training ones"
-  | otherwise              = [ (label, pdf d val) | (label, featureDists) <- dists
-                                                  , (val, d) <- zip features featureDists ]
+  | length features /= len = Left "classifyBayes: input feature vector not of same size as training ones"
+  | otherwise              = Right [ (label, pdf d val) | (label, featureDists) <- dists
+                                                        , (val, d) <- zip features featureDists ]
