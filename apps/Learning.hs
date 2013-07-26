@@ -53,9 +53,9 @@ trainBayes cases = do -- Either monad
     usedLabels = Set.toList . Set.fromList $ map snd cases -- ordered
     len        = length $ fst (head cases)
 
-    m = train <$> inputsByLabelAndFeature :: Map (r, Int) (Normal Double)
+    m = train <$> inputsByLabelAndFeature :: Map (r, FeatureIndex) (Normal Double)
 
-    inputsByLabelAndFeature :: Map (r, Int) [Double] -- [Double] guaranteed to be non-empty
+    inputsByLabelAndFeature :: Map (r, FeatureIndex) [Double] -- [Double] guaranteed to be non-empty
     inputsByLabelAndFeature = Map.fromListWith (++)
                                 [ ((label, fi), [val]) | (features, label) <- cases
                                                        , (fi, val) <- zip [0..] features ]
