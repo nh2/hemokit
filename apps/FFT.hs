@@ -139,11 +139,11 @@ main = do
 
         liftIO . print . length . concat . fst . head $ trainingData
 
-        let classifier = trainBayes $ map (first concat) trainingData
+        let classifier = trainBayes' $ map (first concat) trainingData
 
         liftIO $ putStrLn "Classifying..."
 
-        CL.mapM_ (print . classifyBayes classifier . concat)
+        CL.mapM_ (print . classifyBayes' classifier . concat)
 
 
 data Side = L | R | None deriving (Enum, Eq, Ord, Show, Read)
