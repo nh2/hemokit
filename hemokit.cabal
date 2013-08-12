@@ -55,7 +55,7 @@ library
     , conduit                >= 1
     , deepseq                >= 1.2
     , deepseq-generics       >= 0.1
-    , hidapi                 >= 1.0
+    , hidapi                 >= 0.1.1
     , mtl                    >= 2.1.2
     , optparse-applicative   >= 0.5.2.1
     , vector                 >= 0.9
