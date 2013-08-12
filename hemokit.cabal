@@ -81,6 +81,8 @@ executable hemokit-dump
     apps
   main-is:
     Dump.hs
+  other-modules:
+    WebsocketUtils
   build-depends:
       base
     , hemokit
