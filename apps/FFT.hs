@@ -23,7 +23,7 @@ import           Hemokit.Internal.Utils (untilNothing)
 import           Data.IORef
 import           Control.Concurrent.Async
 
-import           Learning
+import qualified Learning as L
 
 
 -- TODO envelope to 0 on the sides?
@@ -136,12 +136,12 @@ main = do
             trainingData = map (second sensorValsToFeatures) taggedSensorVals
 
             -- Clean input data (remove feature if all equal for any label)
-            clean             = makeBadFeatureFilter trainingData
+            clean             = L.makeBadFeatureFilter trainingData
             cleanTrainingData = map (second clean) trainingData
 
             -- Train classifier
-            classifier       = trainBayes' cleanTrainingData
-            cleanAndClassify = probabilitiesBayes' classifier . clean
+            classifier       = L.trainBayes' cleanTrainingData
+            cleanAndClassify = L.probabilitiesBayes' classifier . clean
 
         -- Print how many features were used
         printFeaturesUsed trainingData cleanTrainingData
