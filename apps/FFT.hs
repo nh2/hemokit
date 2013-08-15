@@ -29,7 +29,8 @@ import           Control.Concurrent.Async
 import qualified Learning as L
 
 
-data Mode = Graph | Learning | WebGraph deriving (Eq, Ord, Show)
+data Mode = Print | Graph | Learning | WebGraph
+          deriving (Eq, Ord, Show)
 
 -- | Arguments for the FFT application.
 data FFTArgs = FFTArgs
@@ -61,6 +62,7 @@ fftArgsParser = FFTArgs
 -- | `Mode` command line parser.
 parseMode :: Monad m => String -> m Mode
 parseMode s = case s of
+  "print"    -> return Print
   "graph"    -> return Graph
   "learning" -> return Learning
   "webgraph" -> return WebGraph
@@ -124,11 +126,13 @@ rollingBuffer n | n < 0     = error "rollingBuffer: negative buffer size"
 
 
 printAll :: Sink [V.Vector Double] IO ()
--- printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map showFFT tds))
--- printAll = awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT tds))
-printAll = do
+printAll = CL.mapM_ $ \tds -> liftIO $ putStrLn (unlines (map showFFT tds))
+
+graphFirstSensor :: Sink [V.Vector Double] IO ()
+-- graphFirstSensor = CL.mapM_ $ \tds -> liftIO $ putStrLn (unlines (map graphFFT tds))
+graphFirstSensor = do
   liftIO $ hSetBuffering stdout (BlockBuffering (Just 8000))
-  awaitForever $ \tds -> liftIO $ putStrLn (unlines (map graphFFT [last tds])) >> hFlush stdout -- >> threadDelay 1000000
+  CL.mapM_ $ \tds -> liftIO $ putStrLn (unlines (map graphFFT [last tds])) >> hFlush stdout -- >> threadDelay 1000000
 
 
 -- | Converts a length M list of length N vectors into a length N list of length M vectors.
@@ -199,7 +203,8 @@ main = do
       let fftConduit = sensorData $= rollingFFTConduit fftSize
 
       case mode of
-        Graph    -> fftConduit $$ printAll
+        Print    -> fftConduit $$ printAll
+        Graph    -> fftConduit $$ graphFirstSensor
         Learning -> fftConduit $$ learningSink
         WebGraph -> error "web graph mode not implemented"
 
