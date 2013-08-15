@@ -116,12 +116,12 @@ main = do
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
           let outputSink :: (ToJSON i, Show i) => Sink i IO ()
               outputSink = case serve of
-                Nothing           | json      -> asJson $ CL.mapM_ BSL8.putStrLn
-                                  | otherwise ->          CL.mapM_ print
-                Just (host, port) | json      -> asJson $ websocketSink host port
-                                  | otherwise ->          websocketSink host port
+                Nothing           | json      -> asJson =$ CL.mapM_ BSL8.putStrLn
+                                  | otherwise ->           CL.mapM_ print
+                Just (host, port) | json      -> asJson =$ websocketSink host port
+                                  | otherwise ->           websocketSink host port
                 where
-                  asJson = mapInput encode (const Nothing)
+                  asJson = CL.map encode
 
               throttled = if realtime then ($= throttle) else id
 
