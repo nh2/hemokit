@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase, DeriveDataTypeable, NamedFieldPuns #-}
 
 module Main where
 
@@ -9,11 +9,14 @@ import           Data.Complex
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.List
+import           Data.List.Split (splitOn)
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
 import           Numeric.FFT.Vector.Unnormalized
+import           Options.Applicative hiding (action)
 import           System.IO
 import           Text.Printf
+import           Text.Read
 
 import           Hemokit
 import           Hemokit.Start
@@ -26,9 +29,69 @@ import           Control.Concurrent.Async
 import qualified Learning as L
 
 
+data Mode = Graph | Learning | WebGraph deriving (Eq, Ord, Show)
+
+-- | Arguments for the FFT application.
+data FFTArgs = FFTArgs
+  { emotivArgs  :: EmotivArgs
+  , mode        :: Mode
+  , fftSize     :: Int
+  , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
+  }
+
+-- | Parser for `FFTArgs`.
+fftArgsParser :: Parser FFTArgs
+fftArgsParser = FFTArgs
+  <$> emotivArgsParser
+  <*> nullOption
+      ( long "mode"
+        <> reader parseMode <> value Graph
+        <> help "What to dump. Can be 'print', 'graph', 'webgraph' or 'learning''" )
+  <*> nullOption
+      ( long "fft-size" <> short 's' <> metavar "N"
+        <> reader parseFFTSize <> value 64
+        <> help "Size of the FFT window. Must be a positive power of 2" )
+  <*> (optional . nullOption)
+      ( long "serve" <> metavar "HOST:PORT"
+        <> eitherReader parseHostPort
+        <> help ("Serve output via websockets, e.g. 127.0.0.1:1234 " ++
+                 "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces)") )
+
+
+-- | `Mode` command line parser.
+parseMode :: Monad m => String -> m Mode
+parseMode s = case s of
+  "graph"    -> return Graph
+  "learning" -> return Learning
+  "webgraph" -> return WebGraph
+  _          -> fail "Mode is not valid."
+
+
+parseFFTSize :: Monad m => String -> m Int
+parseFFTSize s = case readMaybe s of
+  Just n | isPowerOf2 n -> return n
+  Just _                -> fail "FFT size must be a power of 2"
+  Nothing               -> fail "FFT size must be a number"
+  where
+    isPowerOf2 x = x `elem` (takeWhile (<= x) $ iterate (*2) 1)
+
+
+-- | Parses host and port from a string like "0.0.0.0:1234".
+parseHostPort :: String -> Either String (String, Int)
+parseHostPort hostPort = case readMaybe portStr of
+  Nothing -> Left $ show portStr ++ " is not a valid port number"
+  Just p  -> Right (host, p)
+  where
+    (host, portStr) = splitLast ":" hostPort
+
+    splitLast :: String -> String -> (String, String)
+    splitLast sep s = let sp = splitOn sep s -- splitOn never returns []
+                       in (intercalate sep (init sp), last sp)
+
+
 -- TODO envelope to 0 on the sides?
-rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [[Double]] m ()
-rollingFFTConduit size = mapOutput (map (V.toList . V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
+rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [V.Vector Double] m ()
+rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
   where
     fft = plan dftR2C size
 
@@ -116,7 +179,12 @@ ground v = V.map (subtract avg) v
 
 main :: IO ()
 main = do
-  m'device <- getEmotivDeviceFromArgs =<< parseArgs "FFT on Emotiv data" emotivArgsParser
+  FFTArgs{ emotivArgs
+          , mode
+          , fftSize
+          } <- parseArgs "FFT on Emotiv data" fftArgsParser
+
+  m'device <- getEmotivDeviceFromArgs emotivArgs
 
   case m'device of
     Left err -> error err
@@ -128,30 +196,40 @@ main = do
       -- This is when we buffer up packets for the first FFT.
       putStrLn "Waiting for FFT to fill..."
 
-      sensorData $$ rollingFFTConduit 64 =$ do
-        -- Get first few values as training data
-        taggedSensorVals <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
+      let fftConduit = sensorData $= rollingFFTConduit fftSize
 
-        let trainingData :: [(Side, [Double])]
-            trainingData = map (second sensorValsToFeatures) taggedSensorVals
+      case mode of
+        Graph    -> fftConduit $$ printAll
+        Learning -> fftConduit $$ learningSink
+        WebGraph -> error "web graph mode not implemented"
 
-            -- Clean input data (remove feature if all equal for any label)
-            clean             = L.makeBadFeatureFilter trainingData
-            cleanTrainingData = map (second clean) trainingData
 
-            -- Train classifier
-            classifier       = L.trainBayes' cleanTrainingData
-            cleanAndClassify = L.probabilitiesBayes' classifier . clean
+learningSink :: (MonadIO m) => Sink [V.Vector Double] m ()
+learningSink = do
+  -- Get first few values as training data
+  taggedSensorVals <- CL.isolate 160 =$ keyboardSideConduit =$ CL.consume
 
-        -- Print how many features were used
-        printFeaturesUsed trainingData cleanTrainingData
+  let trainingData :: [(Side, [Double])]
+      trainingData = map (second sensorValsToFeatures) taggedSensorVals
 
-        liftIO $ putStrLn "Classifying..."
+      -- Clean input data (remove feature if all equal for any label)
+      clean             = L.makeBadFeatureFilter trainingData
+      cleanTrainingData = map (second clean) trainingData
 
-        -- Classify remaining data
-        CL.mapM_ (print . cleanAndClassify . sensorValsToFeatures)
+      -- Train classifier
+      classifier       = L.trainBayes' cleanTrainingData
+      cleanAndClassify = L.probabilitiesBayes' classifier . clean
+
+  -- Print how many features were used
+  printFeaturesUsed trainingData cleanTrainingData
+
+  liftIO $ putStrLn "Classifying..."
+
+  -- Classify remaining data
+  CL.mapM_ (liftIO . print . cleanAndClassify . sensorValsToFeatures)
+
   where
-    sensorValsToFeatures = concat
+    sensorValsToFeatures = concat . map V.toList
 
     printFeaturesUsed trainingData cleanTrainingData = liftIO $ do
       let nFeatures      = length . snd . head $ trainingData
