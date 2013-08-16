@@ -91,11 +91,16 @@ parseHostPort hostPort = case readMaybe portStr of
                        in (intercalate sep (init sp), last sp)
 
 
--- TODO envelope to 0 on the sides?
+-- TODO check whether we really need `ground`
 rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [V.Vector Double] m ()
-rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . ground) . transposeV 14) (rollingBuffer size)
+rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . window . ground) . transposeV 14) (rollingBuffer size)
   where
     fft = plan dftR2C size
+    window = V.zipWith (*) hammingWindow
+
+    hammingWindow :: Vector Double
+    hammingWindow = V.generate size $ \i ->
+        0.5 * (1 - cos (2 * pi * fromIntegral i / (fromIntegral size - 1)))
 
 
 packets :: EmotivDevice -> Source IO EmotivState
