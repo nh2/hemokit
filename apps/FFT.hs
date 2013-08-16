@@ -3,6 +3,7 @@
 module Main where
 
 import           Control.Arrow (second)
+import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Complex
@@ -20,6 +21,7 @@ import           Text.Read
 
 import           Hemokit
 import           Hemokit.Start
+import           Hemokit.Conduit
 
 import           Hemokit.Internal.Utils (untilNothing)
 
@@ -191,6 +193,7 @@ main = do
   FFTArgs{ emotivArgs
           , mode
           , fftSize
+          , serve
           } <- parseArgs "FFT on Emotiv data" fftArgsParser
 
   m'device <- getEmotivDeviceFromArgs emotivArgs
@@ -211,7 +214,9 @@ main = do
         Print    -> fftConduit $$ printAll
         Graph    -> fftConduit $$ graphFirstSensor
         Learning -> fftConduit $$ learningSink
-        WebGraph -> error "web graph mode not implemented"
+        WebGraph -> fftConduit $= CL.mapM (\x -> threadDelay 1000000 >> return x) $$ case serve of
+                      Just (host, port) -> websocketSink host port
+                      Nothing           -> error "no --serve option given"
 
 
 learningSink :: (MonadIO m) => Sink [V.Vector Double] m ()
