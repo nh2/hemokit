@@ -12,7 +12,6 @@ module Hemokit.Start
   , getEmotivDeviceFromArgs
   ) where
 
-import           Data.List
 import           Options.Applicative
 import           System.IO (stdin)
 
@@ -81,12 +80,12 @@ getEmotivDeviceFromArgs EmotivArgs{ model, serial, fromFile } = case fromFile of
         [] -> fail "No devices found."
         _  -> case serial of
 
-          -- Pick the device with the serial the user wants
-          Just s -> case find ((Just s ==) . deviceInfoSerial) devices of
-                      Nothing -> fail $ "No device with serial " ++ show s
-                      Just d  -> Right <$> openEmotivDevice model d
+          -- Pick the last device with the serial the user wants
+          Just s -> case reverse [ d | d <- devices, deviceInfoSerial d == Just s ] of
+                      []  -> fail $ "No device with serial " ++ show s
+                      d:_ -> print d >> Right <$> openEmotivDevice model d
 
           -- TODO Do smarter auto detection, e.g. filter for Emotiv vendorIDs
           --      or the "EPOC BCI" product string.
           -- The user selected no serial, we just use the last device
-          _      -> Right <$> openEmotivDevice model (last devices)
+          _      -> print (last devices) >> Right <$> openEmotivDevice model (last devices)
