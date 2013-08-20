@@ -95,7 +95,8 @@ parseHostPort hostPort = case readMaybe portStr of
 
 -- TODO check whether we really need `ground`
 rollingFFTConduit :: (Monad m) => Int -> ConduitM (Vector Double) [V.Vector Double] m ()
-rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . window . ground) . transposeV 14) (rollingBuffer size)
+-- rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . window . ground) . transposeV 14) (rollingBuffer size)
+rollingFFTConduit size = mapOutput (map (V.map magnitude . execute fft . window) . transposeV 14) (rollingBuffer size)
   where
     fft = plan dftR2C size
     window = V.zipWith (*) hammingWindow
@@ -214,7 +215,8 @@ main = do
         Print    -> fftConduit $$ printAll
         Graph    -> fftConduit $$ graphFirstSensor
         Learning -> fftConduit $$ learningSink
-        WebGraph -> fftConduit $= CL.mapM (\x -> threadDelay 1000000 >> return x) $$ case serve of
+        -- WebGraph -> fftConduit $= CL.mapM (\x -> threadDelay 1000000 >> return x) $$ case serve of
+        WebGraph -> fftConduit $$ case serve of
                       Just (host, port) -> websocketSink host port
                       Nothing           -> error "no --serve option given"
 
