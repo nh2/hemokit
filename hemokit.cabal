@@ -59,7 +59,7 @@ library
     , mtl                    >= 2.1.2
     , optparse-applicative   >= 0.5.2.1
     , vector                 >= 0.9
-    , websockets             >= 0.7.3.0
+    , websockets             >= 0.8.0.0
   hs-source-dirs:
     src
   default-language: Haskell2010
@@ -100,7 +100,7 @@ executable hemokit-dump
     , split                  >= 0.2.2
     , time                   >= 1.4.0.1
     , transformers           >= 0.3.0.0
-    , websockets             >= 0.7.3.0
+    , websockets             >= 0.8.0.0
   ghc-options: -Wall
 
 

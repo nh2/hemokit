@@ -44,10 +44,10 @@ websocketSink host port = do
   chan <- liftIO $ newChan
 
   -- Server loop: Send what comes in via the chan; Nothing shuts down
-  let jsonWSServerFromChan :: WS.Request -> WS.WebSockets WS.Hybi10 ()
+  let jsonWSServerFromChan :: WS.PendingConnection  -> IO ()
       jsonWSServerFromChan = \req -> do
-        WS.acceptRequest req
-        void $ untilNothing (liftIO (readChan chan)) (WS.sendTextData . encode)
+        conn <- WS.acceptRequest req
+        void $ untilNothing (readChan chan) (WS.sendTextData conn . encode)
 
   -- Fork off Websocket server
   _ <- liftIO $ forkIO $ WS.runServer host port jsonWSServerFromChan

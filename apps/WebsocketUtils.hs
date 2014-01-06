@@ -9,17 +9,16 @@ module WebsocketUtils
 
 import           Control.Concurrent
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Data.Aeson (ToJSON(..), encode)
 import           Network.WebSockets
 
 
 -- | A websocket server that serves JSON from a Chan.
-jsonWSServerFromChan :: (ToJSON a) => Chan a -> (Request -> WebSockets Hybi10 ())
+jsonWSServerFromChan :: (ToJSON a) => Chan a -> PendingConnection -> IO ()
 jsonWSServerFromChan chan = \req -> do
-  acceptRequest req
-  c <- liftIO $ dupChan chan
-  forever (liftIO (readChan c) >>= sendTextData . encode)
+  conn <- acceptRequest req
+  c <- dupChan chan
+  forever (readChan c >>= sendTextData conn . encode)
 
 
 -- | Creates and starts (forking) a JSON-serving websocket server.
