@@ -41,6 +41,16 @@ source-repository head
   location:  git://github.com/nh2/hemokit.git
 
 
+flag fft
+  description: Enable apps that use FFT. Needs fftw installed.
+
+flag headmap
+  description: Build the headmap. Needs GUI libraries installed.
+
+flag mouse
+  description: Build the app that controls the mouse with the gyroscope. Needs Xorg and related libraries installed (so it only works on Linux for now).
+
+
 library
   exposed-modules:
     Hemokit
@@ -67,17 +77,20 @@ library
 
 
 executable hemokit-mouse
+  if !flag(mouse)
+    buildable: False
   default-language: Haskell2010
   hs-source-dirs:
     apps
   main-is:
     Mouse.hs
-  build-depends:
-      base
-    , hemokit
-    , pretty-show            >= 1.0
-    , robot                  >= 1.0.1.1
-    , xhb                    >= 0.5.2012.11.23
+  if flag(mouse)
+    build-depends:
+        base
+      , hemokit
+      , pretty-show            >= 1.0
+      , robot                  >= 1.0.1.1
+      , xhb                    >= 0.5.2012.11.23
   ghc-options: -Wall
 
 
@@ -126,37 +139,43 @@ executable hemokit-dump-conduit
 
 
 executable hemokit-fft
+  if !flag(fft)
+    buildable: False
   default-language: Haskell2010
   hs-source-dirs:
     apps
   main-is:
     FFT.hs
-  build-depends:
-      base
-    , hemokit
-    , conduit
-    , mtl                     >= 2.1.2
-    , pretty-show             >= 1.0
-    , vector                  >= 0.9
-    , vector-fftw             >= 0.1.3.1
+  if flag(fft)
+    build-depends:
+        base
+      , hemokit
+      , conduit
+      , mtl                     >= 2.1.2
+      , pretty-show             >= 1.0
+      , vector                  >= 0.9
+      , vector-fftw             >= 0.1.3.1
   ghc-options: -Wall
 
 
 executable hemokit-headmap
+  if !flag(headmap)
+    buildable: False
   default-language: Haskell2010
   hs-source-dirs:
     apps
   main-is:
     Headmap.hs
-  build-depends:
-      base
-    , hemokit
-    , cairo                  >= 0.12.4
-    , gtk                    >= 0.12.4
-    , mtl                    >= 2.1.2
-    , pretty-show            >= 1.0
-    , svgcairo               >= 0.12.1.1
-    , vector                 >= 0.9
+  if flag(headmap)
+    build-depends:
+        base
+      , hemokit
+      , cairo                  >= 0.12.4
+      , gtk                    >= 0.12.4
+      , mtl                    >= 2.1.2
+      , pretty-show            >= 1.0
+      , svgcairo               >= 0.12.1.1
+      , vector                 >= 0.9
   ghc-options: -Wall
 
 
