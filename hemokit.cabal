@@ -98,7 +98,7 @@ executable hemokit-dump
     , optparse-applicative   >= 0.5.2.1
     , pretty-show            >= 1.0
     , split                  >= 0.2.2
-    , time                   >= 1.4.0.1
+    , time                   >= 1.4
     , transformers           >= 0.3.0.0
     , websockets             >= 0.8.0.0
   ghc-options: -Wall
@@ -120,7 +120,7 @@ executable hemokit-dump-conduit
     , optparse-applicative   >= 0.5.2.1
     , pretty-show            >= 1.0
     , split                  >= 0.2.2
-    , time                   >= 1.4.0.1
+    , time                   >= 1.4
     , transformers           >= 0.3.0.0
   ghc-options: -Wall
 
