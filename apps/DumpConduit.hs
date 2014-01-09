@@ -8,6 +8,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Aeson (ToJSON (..), encode)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Base64 as Base64
 import           Data.Conduit
@@ -33,13 +34,17 @@ data DumpArgs = DumpArgs
   , mode        :: DumpMode -- ^ What to dump.
   , realtime    :: Bool     -- ^ In case fromFile is used, throttle to 128 Hz.
   , listDevices :: Bool     -- ^ Do not do anything, print available devices.
-  , json        :: Bool     -- ^ Whether to format the output as JSON.
+  , format      :: OutputFormat        -- ^ How to print the output.
   , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
   }
 
 -- | Whether to dump raw data, hardware-sent packages, cumulative states,
 -- or measurements of device-computer latency.
 data DumpMode = Raw | Packets | State | Measure deriving (Eq, Show)
+
+-- | In what format to print the output.
+-- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
+data OutputFormat = Default | Json deriving (Eq, Ord, Show)
 
 
 -- | Parser for `DumpArgs`.
@@ -56,9 +61,10 @@ dumpArgsParser = DumpArgs
   <*> switch
       ( long "list"
         <> help "Show all available Emotiv devices and exit" )
-  <*> switch
-      ( long "json"
-        <> help "Format output as JSON" )
+  <*> nullOption
+      ( long "format"
+        <> reader parseOutputFormat <> value Default
+        <> help "Format output as Haskell value, JSON or space-separated" )
   <*> (optional . nullOption)
       ( long "serve" <> metavar "HOST:PORT"
         <> eitherReader parseHostPort
@@ -77,6 +83,13 @@ parseDumpMode s = case s of
   "state"   -> return State
   "measure" -> return Measure
   _         -> fail "Mode is not valid. Must be 'raw', 'packets', or 'state'."
+
+-- | `OutputFormat` command line parser.
+parseOutputFormat :: Monad m => String -> m OutputFormat
+parseOutputFormat s = case s of
+  "default"-> return Default
+  "json"   -> return Json
+  _        -> fail "Format is not valid. Must be 'default', or 'json'."
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
@@ -98,7 +111,7 @@ main = do
           , mode
           , realtime
           , listDevices
-          , json
+          , format
           , serve
           } <- parseArgs "Dumps Emotiv data" dumpArgsParser
 
@@ -113,27 +126,33 @@ main = do
         Left err     -> error err
         Right device -> do
 
-          -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
-          let outputSink :: (ToJSON i, Show i) => Sink i IO ()
+          let -- Show the datatype or format via JSON?
+              formatConduit :: (ToJSON i, Show i) => Conduit i IO BSL.ByteString
+              formatConduit = case format of
+                Default -> CL.map (BSL8.pack . show)
+                Json    -> CL.map encode
+
+              -- Print to stdout or serve via websockets?
               outputSink = case serve of
-                Nothing           | json      -> asJson =$ CL.mapM_ BSL8.putStrLn
-                                  | otherwise ->           CL.mapM_ print
-                Just (host, port) | json      -> asJson =$ websocketSink host port
-                                  | otherwise ->           websocketSink host port
-                where
-                  asJson = CL.map encode
+                Nothing           -> CL.mapM_ BSL8.putStrLn
+                Just (host, port) -> websocketSink host port
+
+              -- Prints raw bytes to stdout
+              rawBytesSink = CL.mapM_ (putStrBsFlush . emotivRawDataBytes)
 
               throttled = if realtime then ($= throttle) else id
 
           -- Output accumulative state, device-sent packet, or raw data?
           case mode of
-            Packets -> throttled (emotivPackets device) $$ outputSink
+            Packets -> throttled (emotivPackets device) $$ formatConduit =$ outputSink
 
-            State   -> throttled (emotivStates  device) $$ outputSink
+            State   -> throttled (emotivStates  device) $$ formatConduit =$ outputSink
 
-            Raw     -> throttled (rawSource     device) $$ if json then outputSink
-                                                                   else CL.mapM_ (putStrBsFlush . emotivRawDataBytes)
-            Measure -> throttled (rawSource     device) $= measureConduit $$ outputSink
+            Raw     -> throttled (rawSource     device) $$
+                         if (format == Default)       then rawBytesSink
+                                                      else formatConduit =$ outputSink -- use EmotivRawData newtype for base64 encoding
+
+            Measure -> throttled (rawSource     device) $= measureConduit $$ formatConduit =$ outputSink
 
   where
     putStrBsFlush bs = BS.putStr bs >> hFlush stdout

@@ -39,7 +39,7 @@ jsonConduit = awaitForever (yield . encode)
 
 -- * Websockets
 
-websocketSink :: (MonadIO m, ToJSON a) => String -> Int -> Sink a m ()
+websocketSink :: (MonadIO m) => String -> Int -> Sink ByteString m ()
 websocketSink host port = do
   chan <- liftIO $ newChan
 
@@ -47,7 +47,7 @@ websocketSink host port = do
   let jsonWSServerFromChan :: WS.PendingConnection  -> IO ()
       jsonWSServerFromChan = \req -> do
         conn <- WS.acceptRequest req
-        void $ untilNothing (readChan chan) (WS.sendTextData conn . encode)
+        void $ untilNothing (readChan chan) (WS.sendTextData conn)
 
   -- Fork off Websocket server
   _ <- liftIO $ forkIO $ WS.runServer host port jsonWSServerFromChan
