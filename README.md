@@ -3,9 +3,13 @@ hemokit
 
 Haskell library and tool suite for the [Emotiv](http://emotiv.com) Epoc EEG, inspired by the [Emokit](https://github.com/openyou/emokit) code.
 
-Get it via [`cabal install hemokit`](http://hackage.haskell.org/package/hemokit).
+It currently only works on Linux and Windows - patches for other platforms are welcome, they should be trivial.
 
-Hemokit currently only works on Linux (patches welcome).
+
+Download
+--------
+
+You can download [pre-built binaries here](https://github.com/nh2/hemokit/releases), or build it yourself via [`cabal install hemokit`](http://hackage.haskell.org/package/hemokit).
 
 
 Library Features
