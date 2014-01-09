@@ -116,6 +116,7 @@ executable hemokit-dump
     , split                  >= 0.2.2
     , time                   >= 1.4
     , transformers           >= 0.3.0.0
+    , vector                 >= 0.9
     , websockets             >= 0.8.0.0
   ghc-options: -Wall
 
