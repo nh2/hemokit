@@ -166,11 +166,11 @@ main = do
                            modifyIORef' countRef (+1)
                            when (count == 128) $ do
                              cycleTime <- diffUTCTime <$> getCurrentTime <*> readIORef timeRef
-                             output . formatOutput $ toDoule cycleTime
+                             output . formatOutput $ toDouble cycleTime
                              writeIORef countRef 0
                              writeIORef timeRef =<< getCurrentTime
                            where
-                             toDoule x = fromRational (toRational x) :: Double
+                             toDouble x = fromRational (toRational x) :: Double
 
 
             -- When realtime is on, throttle the reading to 1/129 (a real
