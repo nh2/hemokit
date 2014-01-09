@@ -86,5 +86,7 @@ getEmotivDeviceFromArgs EmotivArgs{ model, serial, fromFile } = case fromFile of
                       Nothing -> fail $ "No device with serial " ++ show s
                       Just d  -> Right <$> openEmotivDevice model d
 
+          -- TODO Do smarter auto detection, e.g. filter for Emotiv vendorIDs
+          --      or the "EPOC BCI" product string.
           -- The user selected no serial, we just use the last device
           _      -> Right <$> openEmotivDevice model (last devices)
