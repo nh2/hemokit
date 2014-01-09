@@ -132,7 +132,7 @@ main = do
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           output <- case serve of
             -- TODO use Data.ByteString.Lazy.UTF8.fromString instead of BSL8 to prevent unicode errors
-            Nothing           -> return BSL8.putStrLn
+            Nothing           -> return (\x -> BSL8.putStrLn x >> hFlush stdout)
             Just (host, port) -> do sendFn <- makeWSServer host port
                                     return sendFn
 
@@ -156,9 +156,11 @@ main = do
 
               Raw     -> readEmotivRaw device `withJustM` \rawBytes -> do
                            case format of
-                             Default -> BS.putStr (emotivRawDataBytes rawBytes) -- raw data stdout
-                             _       -> output $ formatOutput rawBytes
-                           hFlush stdout -- flush so that consuming apps immediately get it
+                             Default -> -- raw data stdout; flush so that consuming apps immediately get it
+                                        BS.putStr (emotivRawDataBytes rawBytes) >> hFlush stdout
+
+                             _       -> -- use EmotivRawData newtype for base64 encoding
+                                        output $ formatOutput rawBytes
 
               Measure -> readEmotivRaw device `withJustM` \_ -> do
                            -- When a full cycle is done, print how long it took.
