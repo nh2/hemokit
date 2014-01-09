@@ -27,7 +27,7 @@ data EmotivArgs = EmotivArgs
                                       --   Also allows to pick a certain device.
   , fromFile    :: Maybe FilePath     -- ^ Use the given device or dump file for input.
                                       --   If not given, HIDAPI is used.
-  } deriving (Eq, Show)
+  } deriving (Eq, Ord, Show)
 
 
 -- | EEG model command line parser.

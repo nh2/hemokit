@@ -38,11 +38,11 @@ data DumpArgs = DumpArgs
 
 -- | Whether to dump raw data, hardware-sent packages, cumulative states,
 -- or measurements of device-computer latency.
-data DumpMode = Raw | Packets | State | Measure deriving (Eq, Show)
+data DumpMode = Raw | Packets | State | Measure deriving (Eq, Ord, Show)
 
 -- | In what format to print the output.
 -- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
-data OutputFormat = Default | Json deriving (Eq, Show)
+data OutputFormat = Default | Json deriving (Eq, Ord, Show)
 
 
 -- | Parser for `DumpArgs`.

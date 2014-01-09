@@ -86,11 +86,11 @@ import           System.IO
 --
 -- You can check if you are using the correct model by seeing if the packet
 -- `counter` increases from 0 until 128 on subsequent packets.
-data EmotivModel = Consumer | Developer deriving (Eq, Show, Generic)
+data EmotivModel = Consumer | Developer deriving (Eq, Ord, Show, Generic)
 
 
 -- | A valid Emotiv serial number. 16 bytes.
-newtype SerialNumber = SerialNumber ByteString deriving (Eq, Show, Generic)
+newtype SerialNumber = SerialNumber ByteString deriving (Eq, Ord, Show, Generic)
 
 -- | Checks an Emotiv serial, returning a `SerialNumber` if it's valid.
 makeSerialNumber :: ByteString -> Maybe SerialNumber
@@ -145,7 +145,7 @@ allSensors = [minBound .. maxBound]
 
 
 -- | Describes the indices of bits to make up a certain value.
-newtype BitMask = BitMask [Word8] deriving (Eq, Show)
+newtype BitMask = BitMask [Word8] deriving (Eq, Ord, Show)
 
 -- | Describes which bits in a raw data packet make up the given sensor.
 getSensorMask :: Sensor -> BitMask
@@ -270,7 +270,7 @@ data EmotivPacket = EmotivPacket
   , packetGyroY   :: Int                 -- ^ turning "down" gives positive numbers
   , packetSensors :: Vector Int          -- ^ EEG sensor values
   , packetQuality :: Maybe (Sensor, Int) -- ^ EEG sensor-to-skin connectivity
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 -- | Contains the "current state" of the EEG, cumulateively updated by
@@ -282,13 +282,13 @@ data EmotivState = EmotivState
   , gyroY     :: Int        -- ^ turning "down" gives positive numbers
   , sensors   :: Vector Int -- ^ EEG sensor values
   , qualities :: Vector Int -- ^ EEG sensor-to-skin connectivity
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 -- | Wraps (unencrypted) Emotiv raw data. Ensures that it is 32 bytes.
 newtype EmotivRawData = EmotivRawData
   { emotivRawDataBytes :: ByteString
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 -- | Treat a `ByteString` as Emotiv raw data.
