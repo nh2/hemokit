@@ -23,7 +23,7 @@ import           Hemokit
 import           Hemokit.Start
 
 import           Hemokit.Internal.Utils (withJustM)
-import           WebsocketUtils (makeJsonOrShowWSServer, JsonShowable (..))
+import           WebsocketUtils (makeWSServer)
 
 
 -- | Arguments for the EEG dump application.
@@ -32,13 +32,17 @@ data DumpArgs = DumpArgs
   , mode        :: DumpMode -- ^ What to dump.
   , realtime    :: Bool     -- ^ In case fromFile is used, throttle to 128 Hz.
   , listDevices :: Bool     -- ^ Do not do anything, print available devices.
-  , json        :: Bool     -- ^ Whether to format the output as JSON.
+  , format      :: OutputFormat        -- ^ How to print the output.
   , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
   }
 
 -- | Whether to dump raw data, hardware-sent packages, cumulative states,
 -- or measurements of device-computer latency.
 data DumpMode = Raw | Packets | State | Measure deriving (Eq, Show)
+
+-- | In what format to print the output.
+-- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
+data OutputFormat = Default | Json deriving (Eq, Show)
 
 
 -- | Parser for `DumpArgs`.
@@ -55,9 +59,10 @@ dumpArgsParser = DumpArgs
   <*> switch
       ( long "list"
         <> help "Show all available Emotiv devices and exit" )
-  <*> switch
-      ( long "json"
-        <> help "Format output as JSON" )
+  <*> nullOption
+      ( long "format"
+        <> reader parseOutputFormat <> value Default
+        <> help "Format output as Haskell value, JSON or space-separated" )
   <*> (optional . nullOption)
       ( long "serve" <> metavar "HOST:PORT"
         <> eitherReader parseHostPort
@@ -76,6 +81,13 @@ parseDumpMode s = case s of
   "state"   -> return State
   "measure" -> return Measure
   _         -> fail "Mode is not valid. Must be 'raw', 'packets', or 'state'."
+
+-- | `OutputFormat` command line parser.
+parseOutputFormat :: Monad m => String -> m OutputFormat
+parseOutputFormat s = case s of
+  "default"-> return Default
+  "json"   -> return Json
+  _        -> fail "Format is not valid. Must be 'default', or 'json'."
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
@@ -97,7 +109,7 @@ main = do
           , mode
           , realtime
           , listDevices
-          , json
+          , format
           , serve
           } <- parseArgs "Dumps Emotiv data" dumpArgsParser
 
@@ -112,12 +124,17 @@ main = do
         Left err     -> error err
         Right device -> do
 
+          let formatOutput x = case format of
+                Default -> BSL8.pack (show x)
+                Json    -> encode x
+
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
           output <- case serve of
             -- TODO use Data.ByteString.Lazy.UTF8.fromString instead of BSL8 to prevent unicode errors
-            Nothing           -> return (BSL8.putStrLn . if json then encode else BSL8.pack . show)
-            Just (host, port) -> makeJsonOrShowWSServer host port json
+            Nothing           -> return BSL8.putStrLn
+            Just (host, port) -> do sendFn <- makeWSServer host port
+                                    return sendFn
 
           -- For --mode measure: See how long a 0-128 cycle takes
           timeRef <- newIORef =<< getCurrentTime
@@ -132,14 +149,15 @@ main = do
 
             moreInput <- case mode of
               Packets -> readEmotiv device `withJustM` \(_, packet) ->
-                           output (JsonShowable packet)
+                           output $ formatOutput packet
 
               State   -> readEmotiv device `withJustM` \(state, _) ->
-                           output (JsonShowable state)
+                           output $ formatOutput state
 
               Raw     -> readEmotivRaw device `withJustM` \rawBytes -> do
-                           if json then output (JsonShowable rawBytes)
-                                   else BS.putStr (emotivRawDataBytes rawBytes)
+                           case format of
+                             Default -> BS.putStr (emotivRawDataBytes rawBytes) -- raw data stdout
+                             _       -> output $ formatOutput rawBytes
                            hFlush stdout -- flush so that consuming apps immediately get it
 
               Measure -> readEmotivRaw device `withJustM` \_ -> do
@@ -148,7 +166,7 @@ main = do
                            modifyIORef' countRef (+1)
                            when (count == 128) $ do
                              cycleTime <- diffUTCTime <$> getCurrentTime <*> readIORef timeRef
-                             output . JsonShowable $ toDoule cycleTime
+                             output . formatOutput $ toDoule cycleTime
                              writeIORef countRef 0
                              writeIORef timeRef =<< getCurrentTime
                            where
