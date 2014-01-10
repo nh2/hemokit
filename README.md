@@ -52,14 +52,17 @@ hemokit-dump - Examples
 * Output only the data the device sends (no cumulative state), and format the output as JSON:
 
   ```bash
-  sudo hemokit-dump --mode packets --json
+  sudo hemokit-dump --mode packets --format json
   ```
+
+  The `--format` flag allows you to change the way the output is printed.
+  The output of `--mode state --format spaced` is especially easy to work with.
 
 * Instead of from a real device, read data recorded to a file, and serve it via JSON over a TCP server on port `1234`:
 
   ```bash
   sudo cat /dev/hidraw1 > encrypted.dump  # Dump data to a file
-  sudo hemokit-dump --from-file encrypted.dump --serial SN...GM --serve 0.0.0.0:1234 --json
+  sudo hemokit-dump --from-file encrypted.dump --serial SN...GM --serve 0.0.0.0:1234 --format json
   ```
 
   Here you **have** to specify the serial since HIDAPI is not used to obtain it automatically.
@@ -75,7 +78,7 @@ hemokit-dump - Examples
 * Both print the data from the EEG **and** store the original data for later use:
 
   ```bash
-  sudo cat /dev/hidraw1 | tee >(hemokit-dump --from-file - --serial SN...GM --json) > encrypted.dump
+  sudo cat /dev/hidraw1 | tee >(hemokit-dump --from-file - --serial SN...GM --format json) > encrypted.dump
   ```
 
   We use `tee` and shell process substitution to duplicate the data stream, and tell *hemokit-dump* to read from `-` (stdin).
