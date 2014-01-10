@@ -70,6 +70,7 @@ library
     , deepseq-generics       >= 0.1
     , hidapi                 >= 0.1.2
     , mtl                    >= 2.1.2
+    , network-simple         >= 0.3.0
     , optparse-applicative   >= 0.5.2.1
     , vector                 >= 0.9
     , websockets             >= 0.8.0.0
@@ -136,6 +137,7 @@ executable hemokit-dump-conduit
     , base64-bytestring      >= 1.0.0.1
     , bytestring             >= 0.9.2.1
     , conduit                >= 1
+    , network-simple         >= 0.3.0
     , optparse-applicative   >= 0.5.2.1
     , pretty-show            >= 1.0
     , split                  >= 0.2.2

@@ -38,8 +38,8 @@ data DumpArgs = DumpArgs
   , mode        :: DumpMode -- ^ What to dump.
   , realtime    :: Bool     -- ^ In case fromFile is used, throttle to 128 Hz.
   , listDevices :: Bool     -- ^ Do not do anything, print available devices.
-  , format      :: OutputFormat        -- ^ How to print the output.
-  , serve       :: Maybe (String, Int) -- ^ Serve via websockets on host:port.
+  , format      :: OutputFormat      -- ^ How to print the output.
+  , serve       :: Maybe ServeMethod -- ^ Serve via TCP or websockets on host:port.
   }
 
 -- | Whether to dump raw data, hardware-sent packages, cumulative states,
@@ -50,6 +50,10 @@ data DumpMode = Raw | Packets | State | Measure deriving (Eq, Ord, Show)
 -- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
 data OutputFormat = Default | Json | Spaced deriving (Eq, Ord, Show)
 
+-- | Whether to serve via plain TCP or Websockets (hostname and port).
+data ServeMethod
+  = TCP       String Int
+  | Websocket String Int
 
 -- | Parser for `DumpArgs`.
 dumpArgsParser :: Parser DumpArgs
@@ -72,8 +76,9 @@ dumpArgsParser = DumpArgs
   <*> (optional . nullOption)
       ( long "serve" <> metavar "HOST:PORT"
         <> eitherReader parseHostPort
-        <> help ("Serve output via websockets, e.g. 127.0.0.1:1234 " ++
-                 "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces)") )
+        <> help ("Serve output via a TCP server, e.g. 127.0.0.1:1234 " ++
+                 "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces). " ++
+                 "Use 'ws://' before the host to serve via websockets") )
   where
     -- TODO https://github.com/pcapriotti/optparse-applicative/issues/48
     eitherReader str2either = reader (either fail return . str2either)
@@ -98,11 +103,16 @@ parseOutputFormat s = case s of
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
-parseHostPort :: String -> Either String (String, Int)
-parseHostPort hostPort = case readMaybe portStr of
+parseHostPort :: String -> Either String ServeMethod
+parseHostPort hostPortWs = case readMaybe portStr of
   Nothing -> Left $ show portStr ++ " is not a valid port number"
-  Just p  -> Right (host, p)
+  Just p  -> Right $ if ws then Websocket host p
+                           else TCP host p
   where
+    (ws, hostPort) = case stripPrefix "ws://" hostPortWs of
+                       Just rest -> (True,  rest)
+                       Nothing   -> (False, hostPortWs)
+
     (host, portStr) = splitLast ":" hostPort
 
     splitLast :: String -> String -> (String, String)
@@ -152,8 +162,9 @@ main = do
 
               -- Print to stdout or serve via websockets?
               outputSink = case serve of
-                Nothing           -> CL.mapM_ BSL8.putStrLn
-                Just (host, port) -> websocketSink host port
+                Nothing                    -> CL.mapM_ BSL8.putStrLn
+                Just (Websocket host port) -> websocketSink host port
+                Just (TCP host port)       -> tcpSink host port
 
               -- Prints raw bytes to stdout
               rawBytesSink = CL.mapM_ (putStrBsFlush . emotivRawDataBytes)

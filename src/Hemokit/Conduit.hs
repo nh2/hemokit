@@ -6,7 +6,9 @@ import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Aeson (ToJSON (..), encode)
 import           Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BSL
 import           Data.Conduit
+import qualified Network.Simple.TCP as TCP
 import qualified Network.WebSockets as WS
 
 import           Hemokit
@@ -35,6 +37,27 @@ emotivPackets dev = rawSource dev $= mapOutput snd (parsePackets dev)
 -- TODO check if we really need this since it doesn't do any monadic thing
 jsonConduit :: (Monad m, ToJSON i) => Conduit i m ByteString
 jsonConduit = awaitForever (yield . encode)
+
+
+-- * TCP sockets
+
+tcpSink :: (MonadIO m) => String -> Int -> Sink ByteString m ()
+tcpSink host port = do
+  chan <- liftIO $ newChan
+
+  -- Server loop: Send what comes in via the chan; Nothing shuts down
+  let jsonTCPServerFromChan :: (TCP.Socket, TCP.SockAddr)  -> IO ()
+      jsonTCPServerFromChan = \(sock, _remoteAddr) -> do
+        void $ untilNothing (readChan chan) (TCP.send sock . BSL.toStrict)
+
+  -- Fork off Websocket server
+  _ <- liftIO $ forkIO $ TCP.withSocketsDo $ TCP.serve (TCP.Host host) (show port) jsonTCPServerFromChan
+
+  -- Send messages to server via the chan
+  void $ awaitForever (liftIO . writeChan chan . Just)
+
+  -- Tell server to shut down
+  liftIO $ writeChan chan Nothing
 
 
 -- * Websockets
