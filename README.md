@@ -34,7 +34,7 @@ Note that we have to use `sudo` in most of the cases because the HIDAP-hidraw im
 hemokit-dump - Examples
 -----------------------
 
-*hemokit-dump* can print EEG data, format it as JSON, serve it via Websockets, and read from real devices and dump files.
+*hemokit-dump* can print EEG data, format it as JSON, serve it via TCP or Websockets, and read from real devices and dump files.
 
 
 * Output EEG *cumulative state* for an automatically found device:
@@ -55,7 +55,7 @@ hemokit-dump - Examples
   sudo hemokit-dump --mode packets --json
   ```
 
-* Instead of from a real device, read data recorded to a file, and serve it via JSON over a Websockets server on port `1234`:
+* Instead of from a real device, read data recorded to a file, and serve it via JSON over a TCP server on port `1234`:
 
   ```bash
   sudo cat /dev/hidraw1 > encrypted.dump  # Dump data to a file
@@ -63,6 +63,8 @@ hemokit-dump - Examples
   ```
 
   Here you **have** to specify the serial since HIDAPI is not used to obtain it automatically.
+  
+  If you prefer a Websockets server over a raw TCP server, use `ws://0.0.0.0:1234` instead.
 
 * Output decrypted raw data to stdout:
 
