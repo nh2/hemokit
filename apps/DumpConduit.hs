@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, ExistentialQuantification #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
@@ -10,6 +10,8 @@ import           Data.Aeson (ToJSON (..), encode)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL8
+import qualified Data.ByteString.Lazy.Builder as Builder
+import qualified Data.ByteString.Lazy.Builder.ASCII as Builder
 import qualified Data.ByteString.Base64 as Base64
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
@@ -18,6 +20,8 @@ import           Data.IORef
 import           Data.List
 import           Data.List.Split (splitOn)
 import           Data.Time.Clock
+import           Data.Monoid
+import qualified Data.Vector as V
 import           Options.Applicative hiding (action)
 import           System.IO
 import           Text.Read
@@ -44,7 +48,7 @@ data DumpMode = Raw | Packets | State | Measure deriving (Eq, Ord, Show)
 
 -- | In what format to print the output.
 -- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
-data OutputFormat = Default | Json deriving (Eq, Ord, Show)
+data OutputFormat = Default | Json | Spaced deriving (Eq, Ord, Show)
 
 
 -- | Parser for `DumpArgs`.
@@ -89,7 +93,8 @@ parseOutputFormat :: Monad m => String -> m OutputFormat
 parseOutputFormat s = case s of
   "default"-> return Default
   "json"   -> return Json
-  _        -> fail "Format is not valid. Must be 'default', or 'json'."
+  "spaced" -> return Spaced
+  _        -> fail "Format is not valid. Must be 'default', 'json', or 'spaced'."
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
@@ -104,6 +109,13 @@ parseHostPort hostPort = case readMaybe portStr of
     splitLast sep s = let sp = splitOn sep s -- splitOn never returns []
                        in (intercalate sep (init sp), last sp)
 
+whitespaceFormat :: EmotivState -> BSL.ByteString
+whitespaceFormat EmotivState{ counter, battery, gyroX, gyroY, sensors, qualities }
+  = Builder.toLazyByteString . mconcat
+    . intersperse (Builder.char8 ' ') . map Builder.intDec $ ints
+  where
+    ints = [ counter, battery, gyroX, gyroY ] ++ V.toList sensors ++ V.toList qualities
+
 
 main :: IO ()
 main = do
@@ -114,6 +126,11 @@ main = do
           , format
           , serve
           } <- parseArgs "Dumps Emotiv data" dumpArgsParser
+
+  -- Catch invalid mode/format combinations immediately
+  -- (so that we don't block first and error afterwards, see `formatOutput`).
+  when (format == Spaced && mode /= State) $
+    error $ "cannot space-format in " ++ show mode ++ " mode"
 
   if listDevices -- Only list devices
     then getEmotivDevices >>= putStrLn . ("Available devices:\n" ++) . ppShow
@@ -131,6 +148,7 @@ main = do
               formatConduit = case format of
                 Default -> CL.map (BSL8.pack . show)
                 Json    -> CL.map encode
+                Spaced  -> error "hemokit-dump BUG: formatOutput/spaced not caught early"
 
               -- Print to stdout or serve via websockets?
               outputSink = case serve of
@@ -146,11 +164,13 @@ main = do
           case mode of
             Packets -> throttled (emotivPackets device) $$ formatConduit =$ outputSink
 
-            State   -> throttled (emotivStates  device) $$ formatConduit =$ outputSink
+            State   -> throttled (emotivStates  device) $$ case format of
+                         Spaced -> CL.map whitespaceFormat =$ outputSink
+                         _      -> formatConduit =$ outputSink
 
-            Raw     -> throttled (rawSource     device) $$
-                         if (format == Default)       then rawBytesSink
-                                                      else formatConduit =$ outputSink -- use EmotivRawData newtype for base64 encoding
+            Raw     -> throttled (rawSource     device) $$ case format of
+                         Default -> rawBytesSink
+                         _       -> formatConduit =$ outputSink -- use EmotivRawData newtype for base64 encoding
 
             Measure -> throttled (rawSource     device) $= measureConduit $$ formatConduit =$ outputSink
 
