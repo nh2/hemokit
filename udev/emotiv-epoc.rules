@@ -1,0 +1,5 @@
+# Consumer headset
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="21a1", ATTRS{idProduct}=="0001", MODE="0666"
+
+# Developer headset
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1234", ATTRS{idProduct}=="ed02", MODE="0666"
