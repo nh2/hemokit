@@ -31,10 +31,9 @@ main = hspec $ do
 
     let encrypted = "S\a\205\165\195\182\244\DC4\NAKo\255K\\\247\146>tB\144q\165-\192\221\CANSa\150V,@\180"
         decrypted = decrypt _SERIAL Consumer encrypted
-        decrypted_expected = "P}::\199\183\221\193|!\250h\205\NUL\NUL\NUL\STX\ENQX\r\162E|\218)\ETB\155\US\224gi9"
+        rawData_expected = makeEmotivRawData "P}::\199\183\221\193|!\250h\205\NUL\NUL\NUL\STX\ENQX\r\162E|\218)\ETB\155\US\224gi9"
         packet_expected = EmotivPacket
-          { packetRawData = makeEmotivRawData decrypted_expected
-          , packetCounter = 80
+          { packetCounter = 80
           , packetBattery = Nothing
           , packetGyroX   = -1
           , packetGyroY   = 8
@@ -42,5 +41,5 @@ main = hspec $ do
           , packetQuality = Just (FC6, 0)
           }
 
-    it "decrypts a valid packet" $ emotivRawDataBytes decrypted @?= decrypted_expected
-    it "parses a valid packet"   $ parsePacket decrypted        @?= packet_expected
+    it "decrypts a valid packet" $ decrypted             @?= rawData_expected
+    it "parses a valid packet"   $ parsePacket decrypted @?= packet_expected
