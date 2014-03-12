@@ -23,7 +23,7 @@ import HLearn.Models.Distributions
 type FeatureIndex = Int
 
 data BayesClassifier label = BayesClassifier -- label must be Ord,
-  { distsByLabelAndFeature :: [(label, Int, [Normal Double])]
+  { distsByLabelAndFeature :: [(label, Int, [Normal Double Double])]
     -- ^ invariants:
     -- * nonempty
     -- * ordered by label
@@ -62,7 +62,7 @@ trainBayes cases = do -- Either monad
     usedLabels = Set.toAscList . Set.fromList $ map fst cases -- ordered
     len        = length $ snd (head cases)
 
-    m = train <$> inputsByLabelAndFeature :: Map (r, FeatureIndex) (Normal Double)
+    m = train <$> inputsByLabelAndFeature :: Map (r, FeatureIndex) (Normal Double Double)
 
     inputsByLabelAndFeature :: Map (r, FeatureIndex) [Double] -- [Double] guaranteed to be non-empty
     inputsByLabelAndFeature = Map.fromListWith (++)

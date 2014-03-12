@@ -217,7 +217,7 @@ main = do
         Learning -> fftConduit $$ learningSink
         -- WebGraph -> fftConduit $= CL.mapM (\x -> threadDelay 1000000 >> return x) $$ case serve of
         WebGraph -> fftConduit $$ case serve of
-                      Just (host, port) -> websocketSink host port
+                      Just (host, port) -> jsonConduit =$ websocketSink host port
                       Nothing           -> error "no --serve option given"
 
 
