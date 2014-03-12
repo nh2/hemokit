@@ -23,8 +23,8 @@ main = do
 
   putStrLn $ "AvailableDevices:\n" ++ ppShow devices
 
-  device <- openEmotivDevice model $ case devices of d:_ -> d
-                                                     []  -> error "no Epoc devices found"
+  device <- openEmotivDevice model $ case reverse devices of d:_ -> d
+                                                             []  -> error "no Epoc devices found"
 
   m'xConnection <- connect
   xy <- newIORef (0,0)
