@@ -11,7 +11,6 @@ import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.ByteString.Lazy.Builder.ASCII as Builder
-import qualified Data.ByteString.Base64 as Base64
 import           Data.Function (fix)
 import           Data.IORef
 import           Data.List
@@ -27,7 +26,7 @@ import           Text.Show.Pretty
 import           Hemokit
 import           Hemokit.Start
 
-import           Hemokit.Internal.Utils (withJustM)
+import           Hemokit.Internal.Utils (withJustM, textBase64)
 import           SocketUtils (makeTCPServer)
 import           WebsocketUtils (makeWSServer)
 
@@ -226,7 +225,7 @@ instance ToJSON EmotivPacket
 instance ToJSON EmotivState
 
 instance ToJSON EmotivRawData where
-  toJSON = toJSON . Base64.encode . emotivRawDataBytes
+  toJSON = toJSON . textBase64 . emotivRawDataBytes
 
 instance ToJSON Sensor where
   toJSON = toJSON . show

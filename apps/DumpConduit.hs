@@ -12,7 +12,6 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.ByteString.Lazy.Builder.ASCII as Builder
-import qualified Data.ByteString.Base64 as Base64
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.Function (fix)
@@ -30,6 +29,7 @@ import           Text.Show.Pretty
 import           Hemokit
 import           Hemokit.Conduit
 import           Hemokit.Start
+import           Hemokit.Internal.Utils (textBase64)
 
 
 -- | Arguments for the EEG dump application.
@@ -233,7 +233,7 @@ instance ToJSON EmotivPacket
 instance ToJSON EmotivState
 
 instance ToJSON EmotivRawData where
-  toJSON = toJSON . Base64.encode . emotivRawDataBytes
+  toJSON = toJSON . textBase64 . emotivRawDataBytes
 
 instance ToJSON Sensor where
   toJSON = toJSON . show
