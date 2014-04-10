@@ -7,7 +7,7 @@ maintainer:    Niklas Hambüchen <mail@nh2.me>
 category:      Bioinformatics
 build-type:    Simple
 stability:     experimental
-tested-with:   GHC==7.6.2
+tested-with:   GHC==7.6.3, GHC==7.8.1
 cabal-version: >= 1.10
 homepage:      https://github.com/nh2/haskell-hemokit
 bug-reports:   https://github.com/nh2/haskell-hemokit/issues
