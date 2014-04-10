@@ -78,9 +78,6 @@ dumpArgsParser = DumpArgs
         <> help ("Serve output via a TCP server, e.g. 127.0.0.1:1234 " ++
                  "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces). " ++
                  "Use 'ws://' before the host to serve via websockets") )
-  where
-    -- TODO https://github.com/pcapriotti/optparse-applicative/issues/48
-    eitherReader str2either = reader (either fail return . str2either)
 
 
 -- | `DumpMode` command line parser.
