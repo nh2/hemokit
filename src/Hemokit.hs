@@ -112,7 +112,7 @@ decrypt (SerialNumber num) typ encrypted32bytes = makeEmotivRawData decrypted32b
     sn x | x >= 0    = index num x
          | otherwise = sn (BS.length num + x)
     c = fromIntegral . ord
-    key = initKey . BS.pack $ start ++ middle ++ end
+    key = initAES . BS.pack $ start ++ middle ++ end
 
     start =        [ sn (-1), 0, sn (-2)]
     middle = case typ of
