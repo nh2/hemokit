@@ -11,7 +11,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Lazy.Builder as Builder
-import qualified Data.ByteString.Lazy.Builder.ASCII as Builder
+import qualified Data.ByteString.Lazy.Builder.ASCII as ASCIIBuilder
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.Function (fix)
@@ -119,7 +119,7 @@ parseHostPort hostPortWs = case readMaybe portStr of
 whitespaceFormat :: EmotivState -> BSL.ByteString
 whitespaceFormat EmotivState{ counter, battery, gyroX, gyroY, sensors, qualities }
   = Builder.toLazyByteString . mconcat
-    . intersperse (Builder.char8 ' ') . map Builder.intDec $ ints
+    . intersperse (Builder.char8 ' ') . map ASCIIBuilder.intDec $ ints
   where
     ints = [ counter, battery, gyroX, gyroY ] ++ V.toList sensors ++ V.toList qualities
 
