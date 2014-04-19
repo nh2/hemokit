@@ -11,6 +11,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.ByteString.Lazy.Builder as Builder
+import qualified Data.ByteString.Lazy.Builder.ASCII as Builder
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.Function (fix)
