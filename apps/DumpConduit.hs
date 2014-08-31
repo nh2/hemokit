@@ -116,6 +116,9 @@ parseHostPort hostPortWs = case readMaybe portStr of
     splitLast sep s = let sp = splitOn sep s -- splitOn never returns []
                        in (intercalate sep (init sp), last sp)
 
+
+-- | Space-separates all values in the order
+-- `[counter] [battery] [gyroX] [gyroY] [sensors..] [qualities..]`.
 whitespaceFormat :: EmotivState -> BSL.ByteString
 whitespaceFormat EmotivState{ counter, battery, gyroX, gyroY, sensors, qualities }
   = Builder.toLazyByteString . mconcat
