@@ -47,7 +47,7 @@ data DumpMode = Raw | Packets | State | Measure deriving (Eq, Ord, Show)
 
 -- | In what format to print the output.
 -- `Default` is raw bytes to stdout for `Raw` mode and `show` for everything else.
-data OutputFormat = Default | Json | Spaced deriving (Eq, Ord, Show)
+data OutputFormat = Default | Json | Spaced | SensorBytes deriving (Eq, Ord, Show)
 
 -- | Whether to serve via plain TCP or Websockets (hostname and port).
 data ServeMethod
@@ -92,10 +92,11 @@ parseDumpMode s = case s of
 -- | `OutputFormat` command line parser.
 parseOutputFormat :: Monad m => String -> m OutputFormat
 parseOutputFormat s = case s of
-  "default"-> return Default
-  "json"   -> return Json
-  "spaced" -> return Spaced
-  _        -> fail "Format is not valid. Must be 'default', 'json', or 'spaced'."
+  "default"     -> return Default
+  "json"        -> return Json
+  "spaced"      -> return Spaced
+  "sensorbytes" -> return SensorBytes
+  _             -> fail "Format is not valid. Must be 'default', 'json', 'spaced' or 'sensorbytes'."
 
 
 -- | Parses host and port from a string like "0.0.0.0:1234".
@@ -126,6 +127,13 @@ whitespaceFormat EmotivState{ counter, battery, gyroX, gyroY, sensors, qualities
     ints = [ counter, battery, gyroX, gyroY ] ++ V.toList sensors ++ V.toList qualities
 
 
+-- | Formats all sensor values as 16 bit ints (big endian) into a `ByteString`.
+sensorBytesFormat :: EmotivState -> BSL.ByteString
+sensorBytesFormat EmotivState{ sensors }
+  = Builder.toLazyByteString . V.foldl1' (<>)
+    . V.map (Builder.word16BE . fromIntegral) $ sensors
+
+
 main :: IO ()
 main = do
   DumpArgs{ emotivArgs
@@ -138,7 +146,7 @@ main = do
 
   -- Catch invalid mode/format combinations immediately
   -- (so that we don't block first and error afterwards, see `formatOutput`).
-  when (format == Spaced && mode /= State) $
+  when (format `elem` [Spaced, SensorBytes] && mode /= State) $
     error $ "cannot space-format in " ++ show mode ++ " mode"
 
   if listDevices -- Only list devices
@@ -153,9 +161,10 @@ main = do
         Right device -> do
 
           let formatOutput x = case format of
-                Default -> BSL8.pack (show x)
-                Json    -> encode x
-                Spaced  -> error "hemokit-dump BUG: formatOutput/spaced not caught early"
+                Default     -> BSL8.pack (show x)
+                Json        -> encode x
+                Spaced      -> error "hemokit-dump BUG: formatOutput/spaced not caught early"
+                SensorBytes -> error "hemokit-dump BUG: formatOutput/sensorbytes not caught early"
 
           -- Print to stdout or serve via websockets? Show the datatype or format via JSON?
           -- `output` accepts anything that's JSON-formattable and showable (wrapped in JsonShowable).
@@ -184,8 +193,9 @@ main = do
 
               State   -> readEmotiv device `withJustM` \(state, _) ->
                            case format of
-                             Spaced -> output $ whitespaceFormat state
-                             _      -> output $ formatOutput state
+                             Spaced      -> output $ whitespaceFormat state
+                             SensorBytes -> output $ sensorBytesFormat state
+                             _           -> output $ formatOutput state
 
               Raw     -> readEmotivRaw device `withJustM` \rawBytes -> do
                            case format of
