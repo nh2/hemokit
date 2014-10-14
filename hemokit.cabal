@@ -96,8 +96,7 @@ executable hemokit-mouse
         base
       , hemokit
       , pretty-show            >= 1.0
-      , robot                  >= 1.0.1.1
-      , xhb                    >= 0.5.2012.11.23
+      , robot                  >= 1.3.0.1
   ghc-options: -Wall
 
 
