@@ -71,8 +71,9 @@ library
     , deepseq-generics       >= 0.1
     , hidapi                 >= 0.1.2
     , mtl                    >= 2.1.2
-    , network-simple         >= 0.3.0
-    , optparse-applicative   >= 0.7.0
+    -- network-simple 0.4.0.1 breaks on Windows: https://github.com/k0001/network-simple/issues/13
+    , network-simple         >= 0.3.0   && < 0.4.0.1
+    , optparse-applicative   >= 0.7.0   && < 0.10.0
     , text                   >= 0.11.1.1
     , vector                 >= 0.9
     , websockets             >= 0.8.0.0
@@ -114,8 +115,9 @@ executable hemokit-dump
     , hemokit
     , aeson                  >= 0.6.1.0
     , bytestring             >= 0.9.2.1
-    , network-simple         >= 0.3.0
-    , optparse-applicative   >= 0.7.0
+    -- network-simple 0.4.0.1 breaks on Windows: https://github.com/k0001/network-simple/issues/13
+    , network-simple         >= 0.3.0   && < 0.4.0.1
+    , optparse-applicative   >= 0.7.0   && < 0.10.0
     , pretty-show            >= 1.0
     , split                  >= 0.2.2
     , time                   >= 1.4
@@ -137,8 +139,9 @@ executable hemokit-dump-conduit
     , aeson                  >= 0.6.1.0
     , bytestring             >= 0.9.2.1
     , conduit                >= 1
-    , network-simple         >= 0.3.0
-    , optparse-applicative   >= 0.7.0
+    -- network-simple 0.4.0.1 breaks on Windows: https://github.com/k0001/network-simple/issues/13
+    , network-simple         >= 0.3.0   && < 0.4.0.1
+    , optparse-applicative   >= 0.7.0   && < 0.10.0
     , pretty-show            >= 1.0
     , split                  >= 0.2.2
     , time                   >= 1.4
