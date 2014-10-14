@@ -6,4 +6,5 @@ ghc:
 
 before_install:
   - sudo apt-get install libudev-dev
-  - cabal install gtk2hs-buildtools happy
+  - cabal install alex happy
+  - cabal install gtk2hs-buildtools
