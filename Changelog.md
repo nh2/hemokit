@@ -1,3 +1,8 @@
+0.6.5
+
+  * TravisCI integration
+  * Fixed some dependency versions.
+
 0.6.4
 
   * Improved cross-platform builds (releasing only to upload new Windows and Linux binaries).
@@ -10,7 +15,7 @@
 
   * Added support for serving via TCP sockets
   * Added `--format spaced` output for `--mode state` that simply prints values separated by spaces
-  
+
   These changes make it easy to get raw data even in difficult programming environments, e.g. when the platform is Windows (piping is not easy) and the language is Matlab (JSON parsing is hard).
 
 0.5.2
