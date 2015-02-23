@@ -66,7 +66,7 @@ hemokit-dump - Examples
   ```
 
   Here you **have** to specify the serial since HIDAPI is not used to obtain it automatically.
-  
+
   If you prefer a Websockets server over a raw TCP server, use `ws://0.0.0.0:1234` instead.
 
 * Output decrypted raw data to stdout:
@@ -82,3 +82,16 @@ hemokit-dump - Examples
   ```
 
   We use `tee` and shell process substitution to duplicate the data stream, and tell *hemokit-dump* to read from `-` (stdin).
+
+
+Connecting with other Programs
+------------------------------
+
+* To use Hemokit as a data source from [OpenVibe](http://openvibe.inria.fr/), check out the corresponding entry in the [Wiki](https://github.com/nh2/hemokit/wiki)
+* To read Hemokit data from Matlab, I recommend publishing the data on a local socket in text format using `hemokit-dump --format spaced --serve 127.0.0.1:1234`. Then you can read it with code like:
+
+```matlab
+t = tcpip('127.0.0.1', 1234);
+fopen(t)
+data = fscanf(t, '%d');
+```
