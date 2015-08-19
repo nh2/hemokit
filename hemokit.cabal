@@ -72,7 +72,7 @@ library
     , hidapi                 >= 0.1.2
     , mtl                    >= 2.1.2
     -- network-simple 0.4.0.1 breaks on Windows: https://github.com/k0001/network-simple/issues/13
-    , network-simple         >= 0.3.0   && < 0.4.0.1
+    , network-simple         >= 0.4.0.2
     , optparse-applicative   >= 0.11
     , text                   >= 0.11.1.1
     , vector                 >= 0.9
