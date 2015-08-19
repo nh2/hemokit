@@ -1,3 +1,8 @@
+0.6.6
+
+  * Added stack.yaml file. You can now simply build hemokit with [`stack build`](https://github.com/commercialhaskell/stack/)
+  * Updated to optparse-applicative-0.11.
+
 0.6.5
 
   * TravisCI integration
