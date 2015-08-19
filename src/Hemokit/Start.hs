@@ -40,19 +40,19 @@ parseModel s = case s of
 -- | Command line parser for EEG selection. See `EmotivArgs`.
 emotivArgsParser :: Parser EmotivArgs
 emotivArgsParser = EmotivArgs
-  <$> nullOption
+  <$> option (eitherReader parseModel)
       ( long "model" <> metavar "MODEL"
-        <> reader parseModel <> value Consumer
+        <> value Consumer
         <> help "Consumer or Developer model, Consumer by default" )
-  <*> (optional . nullOption)
+  <*> (optional . option (maybeReader makeSerialNumberFromString "Serial number of has invalid format"))
       ( long "serial" <> metavar "SERIALNUMBER"
-        <> maybeReader makeSerialNumberFromString "Serial number of has invalid format"
         <> help "The serial to use. If no --from-file is given, this will select the device" )
   <*> (optional . strOption)
       ( long "from-file" <> metavar "PATH"
         <> help "The file path to read from (e.g. /dev/hidraw0 or myfile.dump)" )
   where
-    maybeReader mbFn msg = reader $ maybe (fail msg) pure . mbFn
+    maybeReader :: (String -> Maybe a) -> String -> ReadM a
+    maybeReader mbFn msg = eitherReader (maybe (fail msg) pure . mbFn)
 
 
 -- | Runs a command line parser. The given program description is used for the

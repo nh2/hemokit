@@ -58,9 +58,9 @@ data ServeMethod
 dumpArgsParser :: Parser DumpArgs
 dumpArgsParser = DumpArgs
   <$> emotivArgsParser
-  <*> nullOption
+  <*> option (eitherReader parseDumpMode)
       ( long "mode"
-        <> reader parseDumpMode <> value State
+        <> value State
         <> help "What to dump. Can be 'raw', 'packets', 'state' or 'measure'" )
   <*> switch
       ( long "realtime"
@@ -68,13 +68,12 @@ dumpArgsParser = DumpArgs
   <*> switch
       ( long "list"
         <> help "Show all available Emotiv devices and exit" )
-  <*> nullOption
+  <*> option (eitherReader parseOutputFormat)
       ( long "format"
-        <> reader parseOutputFormat <> value Default
+        <> value Default
         <> help "Format output as Haskell value, JSON or space-separated" )
-  <*> (optional . nullOption)
+  <*> (optional . option (eitherReader parseHostPort))
       ( long "serve" <> metavar "HOST:PORT"
-        <> eitherReader parseHostPort
         <> help ("Serve output via a TCP server, e.g. 127.0.0.1:1234 " ++
                  "(port 1234, only localhost) or 0.0.0.0:1234 (all interfaces). " ++
                  "Use 'ws://' before the host to serve via websockets") )

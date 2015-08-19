@@ -73,7 +73,7 @@ library
     , mtl                    >= 2.1.2
     -- network-simple 0.4.0.1 breaks on Windows: https://github.com/k0001/network-simple/issues/13
     , network-simple         >= 0.3.0   && < 0.4.0.1
-    , optparse-applicative   >= 0.7.0   && < 0.10.0
+    , optparse-applicative   >= 0.11
     , text                   >= 0.11.1.1
     , vector                 >= 0.9
     , websockets             >= 0.8.0.0
