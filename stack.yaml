@@ -1,8 +1,5 @@
-resolver: lts-1.15
+resolver: lts-6.11
 extra-deps:
-- hidapi-0.1.3
 - robot-1.4
 - svgcairo-0.13.0.3
-- vector-fftw-0.1.3.2
-- Xauth-0.1
 - xhb-0.6.2015.8.1
