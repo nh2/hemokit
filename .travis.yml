@@ -1,4 +1,14 @@
-language: haskell
+# Choose a lightweight base image; we provide our own build tools.
+language: c
+
+# Can't use container based infrastructure because of missing libudev-dev;
+# see https://github.com/travis-ci/apt-package-whitelist/issues/2449
+sudo: required
+
+# Caching so the next build will be fast too.
+cache:
+  directories:
+  - $HOME/.stack
 
 matrix:
   include:
@@ -16,6 +26,13 @@ matrix:
         - hvr-ghc
         packages:
         - ghc-7.10.3
+  - env: GHCVER=8.0.1 STACK_YAML=stack-8.0.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.0.1
   - env: GHCVER=head STACK_YAML=stack-head.yaml
     addons:
       apt:
@@ -24,12 +41,11 @@ matrix:
         packages:
         - ghc-head
   allow_failures:
+    - env: GHCVER=8.0.1 STACK_YAML=stack-8.0.yaml
     - env: GHCVER=head STACK_YAML=stack-head.yaml
 
-
 before_install:
-  # Install system dependencies
-  - sudo apt-get update && sudo apt-get install libudev-dev libfftw3-dev
+  - sudo apt-get install libfftw3-dev libudev-dev
 
   # Download and unpack the stack executable
   - mkdir -p ~/.local/bin
@@ -39,3 +55,6 @@ before_install:
   # ghc
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
   - stack install gtk2hs-buildtools
+
+script:
+  - stack --no-terminal --skip-ghc-check test
