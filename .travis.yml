@@ -1,12 +1,41 @@
 language: haskell
 
-ghc:
-  - 7.8
-  - 7.6
+matrix:
+  include:
+  - env: GHCVER=7.8.4 STACK_YAML=stack-7.8.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.8.4
+  - env: GHCVER=7.10.3 STACK_YAML=stack.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.10.3
+  - env: GHCVER=head STACK_YAML=stack-head.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-head
+  allow_failures:
+    - env: GHCVER=head STACK_YAML=stack-head.yaml
+
 
 before_install:
+  # Install system dependencies
   - sudo apt-get update && sudo apt-get install libudev-dev libfftw3-dev
-  - cabal install alex happy
-  # Work around https://github.com/haskell/cabal/issues/1666: install Cabal
-  - cabal install Cabal
-  - cabal install gtk2hs-buildtools
+
+  # Download and unpack the stack executable
+  - mkdir -p ~/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+  # ghc
+  - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+  - stack install gtk2hs-buildtools
