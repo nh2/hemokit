@@ -11,8 +11,7 @@
 -- * You will obtain `EmotivPacket`s and `EmotivState`s.
 module Hemokit
   ( -- * Opening and reading from EEGs
-    _EMOTIV_VENDOR_ID
-  , _EMOTIV_PRODUCT_ID
+    _EMOTIV_VENDOR_PRODUCT_IDS
   , EmotivDeviceInfo (..)
   , EmotivRawDevice (..)
   , EmotivDevice (..)
@@ -65,6 +64,7 @@ import           Crypto.Cipher.AES
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import           Data.Char
 import           Data.Data
+import           Data.Traversable (for)
 import           Data.IORef
 import           Data.List
 import           Data.Ord (comparing)
@@ -319,13 +319,12 @@ parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
                                 -- If so, then byte0 is the battery value.
 
 
--- | The USB vendor ID of the Emotiv EPOC.
-_EMOTIV_VENDOR_ID :: HID.VendorID
-_EMOTIV_VENDOR_ID = 8609
-
--- | The USB product ID of the Emotiv EPOC.
-_EMOTIV_PRODUCT_ID :: HID.ProductID
-_EMOTIV_PRODUCT_ID = 1
+-- | The USB (vendor, product) IDs of the Emotiv EPOC devices.
+-- From http://www.linux-usb.org/usb.ids
+_EMOTIV_VENDOR_PRODUCT_IDS :: [(HID.VendorID, HID.ProductID)]
+_EMOTIV_VENDOR_PRODUCT_IDS =
+  [ (8609, 1) -- 0x21a1 == 8608; "EPOC Consumer Headset Wireless Dongle"
+  ]
 
 
 -- | Emotiv related errors.
@@ -380,7 +379,8 @@ deviceInfoSerial = (>>= makeSerialNumberFromString) . serialNumber . hidapiDevic
 getEmotivDevices :: IO [EmotivDeviceInfo]
 getEmotivDevices = map EmotivDeviceInfo
                  . sortBy (comparing interfaceNumber)
-                 <$> HID.enumerate (Just _EMOTIV_VENDOR_ID) (Just _EMOTIV_PRODUCT_ID)
+                 . concat
+                 <$> (for _EMOTIV_VENDOR_PRODUCT_IDS $ \(vid, pid) -> HID.enumerate (Just vid) (Just pid))
 
 
 -- | Opens a given Emotiv device.
