@@ -324,6 +324,7 @@ parsePacket raw@(EmotivRawData bytes32) = EmotivPacket
 _EMOTIV_VENDOR_PRODUCT_IDS :: [(HID.VendorID, HID.ProductID)]
 _EMOTIV_VENDOR_PRODUCT_IDS =
   [ (8609, 1) -- 0x21a1 == 8608; "EPOC Consumer Headset Wireless Dongle"
+  , (0x1234, 0xed02) -- "Emotiv EPOC Developer Headset Wireless Dongle"
   ]
 
 
