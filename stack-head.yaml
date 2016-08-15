@@ -1,0 +1,5 @@
+resolver: nightly-2016-08-15
+extra-deps:
+- robot-1.4
+- svgcairo-0.13.0.3
+- xhb-0.6.2015.8.1
